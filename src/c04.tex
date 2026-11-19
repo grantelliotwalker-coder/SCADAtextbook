@@ -1,0 +1,78 @@
+\chap[Part II. Communications]{Chapter 4. Field Protocols and Telemetry Links}
+A protocol is the language a field device and the master agree to speak. Three dominate SCADA: Modbus, DNP3 and IEC 60870-5. This chapter covers how each one works, the links they run over, and the arithmetic of how long a scan takes and how much data a site uses.
+
+\sect{4.1 Polling and report by exception}
+\defn{4.1}{Master and outstation} The master (the SCADA server or a front-end processor) starts every exchange in a polled protocol. The outstation (RTU or PLC) answers. Some protocols also let the outstation speak first.
+
+\defn{4.2}{Polling} The master asks each outstation in turn for its data. Simple and predictable, but every value is resent whether it changed or not, and the master must know every outstation's address.
+
+\defn{4.3}{Unsolicited reporting} The outstation sends changes as they happen without being asked: report by exception (Section 3.2) pushed rather than pulled.
+
+\sect{4.2 Modbus}
+Modbus (1979) is the simplest and most widespread industrial protocol: Modbus RTU over serial lines, Modbus TCP over Ethernet on port 502.
+\begin{tbl}{P{0.25\textwidth}P{0.18\textwidth}L}
+Data table & Traditional address & Access\\\midrule
+Coils & 0xxxx & Single bits, read and write\\
+Discrete inputs & 1xxxx & Single bits, read only\\
+Input registers & 3xxxx & 16-bit words, read only\\
+Holding registers & 4xxxx & 16-bit words, read and write\\
+\end{tbl}
+Common function codes: 1 read coils, 2 read discrete inputs, 3 read holding registers, 4 read input registers, 5 write single coil, 6 write single register, 15 and 16 write multiple.
+
+\onsite The three classic Modbus faults. \emph{Off by one}: register 40001 in a manual is address 0 on the wire, and products disagree about which they mean. \emph{Word order}: a 32-bit float occupies two registers, and the device may send the high word or the low word first; a value that reads as nonsense or a tiny number usually needs its words swapped. \emph{Scaling}: many devices send integers scaled by 10 or 100.
+
+Modbus has no authentication and no timestamps. Any device that can reach port 502 can write any register (Chapter 16).
+
+\sect{4.3 DNP3}
+DNP3 (Distributed Network Protocol, IEEE 1815) was designed for telemetry over poor links, and is the standard in water and electricity in Australia and North America.
+\begin{itemize}
+\item \textbf{Objects and variations.} Data is typed: binary inputs, analogue inputs, counters, binary and analogue outputs, each in several formats.
+\item \textbf{Static and event data.} The outstation keeps current values (static, class 0) and a buffer of changes with timestamps (events, classes 1, 2 and 3, usually by priority).
+\item \textbf{Integrity poll.} A class 0123 poll collects everything; afterwards the master polls only for events, or receives them unsolicited.
+\item \textbf{Time.} Events carry the outstation's timestamp, and the master synchronises the outstation's clock.
+\item \textbf{Select before operate.} For controls, the master selects the output, the outstation confirms, then the master operates: a guard against corrupted commands.
+\end{itemize}
+\prop{4.1}{Why DNP3 survives outages} Because events are buffered and timestamped at the outstation, a site that loses communications for an hour delivers the hour's changes, in the right order and with the right times, when the link returns. Size the event buffer for the longest outage you must survive.
+
+\sect{4.4 IEC 60870-5}
+IEC 60870-5-101 (serial) and -104 (TCP/IP, port 2404) are the European equivalents of DNP3, common in power transmission. The ideas are the same: typed information objects, spontaneous transmission of changes, general interrogation (an integrity poll), time-tagged events and clock synchronisation.
+
+\sect{4.5 The links}
+\begin{tbl}{P{0.22\textwidth}LL}
+Medium & Strengths & Watch for\\\midrule
+Licensed UHF/VHF radio & Owned by the utility; works in outages; long range & Low data rates (often 9,600 bit/s or less); line of sight; key-up delays\\
+Cellular (4G, 5G, LTE-M) & Fast, cheap to install & Coverage, carrier outages, data plans, public network exposure\\
+Satellite & Anywhere & Long round-trip time (around 600 ms for geostationary); cost per byte\\
+Fibre and copper & Fast and reliable & Cost of installation; distance\\
+\end{tbl}
+\law{4.1}{Serial transmission time} On an asynchronous serial link each byte takes about 10 bits (8 data, a start and a stop bit).
+\[ t_{byte} = \frac{10}{\text{baud rate}} \]
+\law{4.2}{Poll cycle} The time to poll every outstation once is the sum of each exchange: request, reply, and the turnaround delays of the link.
+\[ T_{cycle} = \sum_{i} \left(t_{request,i} + t_{reply,i} + t_{turnaround,i}\right) \]
+\wex{4.1} 40 sites on one 9,600 bit/s radio channel. Each poll is an 8-byte request and an 85-byte reply, (8 + 85) × 10 / 9,600 = 97 ms on air, plus two radio key-ups of 150 ms: about 0.40 s per site. A full cycle takes 40 × 0.40 = 15.9 s. If operators need fresher data, poll only for events, use unsolicited reporting, or split the sites across channels.
+
+\law{4.3}{Delivery with retries} If each attempt is lost with probability p, the chance of delivery within k attempts is:
+\[ P_{deliver} = 1 - p^k \]
+On a radio link losing 5\% of messages, three attempts deliver 99.99\%.
+
+\sect{4.6 How much data a site uses}
+\law{4.4}{Bit rate and monthly volume} Messages at rate λ per second, each B bytes on the wire:
+\[ R = 8\,\lambda\,B\ \text{bit/s}, \qquad D_{month} = \lambda \cdot B \cdot 86{,}400 \cdot 30 \]
+\wex{4.2} A cellular site polled by Modbus TCP every 5 seconds, 121 bytes per poll including TCP/IP: 17,280 polls a day, 2.09 MB a day. The same site reporting only on change, about 500 messages a day at 91 bytes: 45.5 kB a day, about one forty-sixth of the data, and the values arrive when they change rather than up to 5 seconds late.
+
+\law{4.5}{Latency budget} The age of a value when the operator sees it is the sum of every stage: field scan, RTU processing, network, server processing and screen refresh.
+\[ T_{total} = T_{scan} + T_{rtu} + T_{network} + T_{server} + T_{display} \]
+The scan and the screen refresh usually dominate. The network is often blamed and rarely guilty.
+
+\sect{4.7 Who connects to whom}
+In a polled system the centre connects \emph{in} to each site, so every site needs an open inbound port, a fixed address or a VPN. In publish-and-subscribe systems (Chapter 5) every site connects \emph{out} to a broker. A site firewall can then block all inbound traffic and allow one outbound connection to one address: a large reduction in attack surface.
+
+\sect{Exercises}
+\begin{enumerate}
+\item A manual lists holding register 40010. What address is likely sent on the wire? (9)
+\item A float that should read 5.0 reads as 2.3 × 10⁻⁴¹. What is the likely fault? (Word order)
+\item How long does one byte take at 1,200 baud? (8.3 ms)
+\item A link loses 10\% of messages. Find the delivery probability within 4 attempts. (99.99\%)
+\item λ = 0.1 per second, B = 100 bytes. Find monthly data. (25.9 MB)
+\item Why does DNP3 deliver correct data after an hour's outage? (Proposition 4.1)
+\end{enumerate}

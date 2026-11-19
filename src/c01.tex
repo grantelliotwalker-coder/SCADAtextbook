@@ -1,0 +1,78 @@
+\chap[Part I. Foundations]{Chapter 1. What SCADA Is}
+Every SCADA system, from a three-site water scheme to a national grid, is built from the same few parts doing the same few jobs. This chapter names them, follows one measurement through all of them, and sets out what a technician is responsible for at each step.
+
+\sect{1.1 Definitions}
+\defn{1.1}{SCADA} Supervisory Control And Data Acquisition: a system that collects measurements from remote equipment, presents them to operators, stores their history, and sends commands back.
+
+\defn{1.2}{Supervisory} SCADA \emph{supervises}. Fast, safety-related control runs locally in the field controller; SCADA changes setpoints, starts and stops equipment, and watches. If the SCADA server fails, the plant should keep running safely on local control.
+
+\defn{1.3}{Telemetry} Measurement and control at a distance, over links that may be slow, costly or intermittent: radio, cellular, satellite, leased line.
+
+\defn{1.4}{Distributed control system, DCS} A control system for one plant, with controllers and operator stations from one vendor on a fast local network. SCADA systems are spread over a wide area with many small sites; a DCS is concentrated on one large one. The two are converging, and a modern treatment plant may use both.
+
+\sect{1.2 The parts of a SCADA system}
+\begin{tbl}{P{0.28\textwidth}L}
+Part & Job\\\midrule
+Field instruments & Turn the process into signals: level, pressure, flow, temperature, analysis, position, run status\\
+Final elements & Turn commands into action: pumps, valves, blowers, drives\\
+RTU or PLC & The field controller. Reads the wires, runs local control logic, and speaks a protocol to the centre\\
+Communications & Radio, cellular, fibre, copper, satellite; and the protocol carried over them (Part II)\\
+SCADA server (master station) & Polls or subscribes to the field, holds the database of points, runs alarms, logic and history\\
+HMI clients & The operators' screens: graphics, alarm lists, trends\\
+Historian & Long-term storage of values for engineers and managers (Chapter 11)\\
+Engineering workstation & Where configuration and controller programs are written and downloaded. A high-value target (Chapter 18)\\
+\end{tbl}
+\defn{1.5}{RTU and PLC} A Remote Terminal Unit is built for remote sites: low power, wide temperature range, data buffering and telemetry protocols such as DNP3. A Programmable Logic Controller is built for fast local control. In practice the line has blurred, and many sites use a PLC with a telemetry module.
+
+\defn{1.6}{Point (tag)} One named item of data in the system: a pressure, a pump status, a setpoint. Chapter 3 treats points in detail.
+
+\defn{1.7}{Template and instance} A template is a master definition of a group of points, graphics and logic for one type of site, such as a sewage pump station. An instance is a linked copy for one real site. Change the template and every instance follows.
+
+\prop{1.1}{Template leverage} With one template of k points and m sites, engineering effort covers k points but delivers m × k. A system of 1,500,000 points built from 60-point pump-station templates is 25,000 instances. Nobody configures 1.5 million points by hand: they configure 60, then automate the instances (Chapter 13).
+
+\sect{1.3 Following one measurement}
+A wet-well level at a remote sewage pump station, from the water surface to the operator's eye:
+\begin{enumerate}
+\item A submersible pressure transmitter converts the depth of water into a 4–20 mA current (Chapter 2).
+\item The RTU's analogue input card converts the current to a number, scales it to metres, and applies a deadband (Chapter 3).
+\item The RTU's local logic starts and stops the pumps on level, whatever happens to the radio.
+\item When the level has moved enough, the RTU reports it, with a timestamp and a quality flag, over DNP3 on a cellular link (Chapter 4).
+\item The SCADA server receives it, updates the point, checks it against alarm limits and stores it in history.
+\item The operator sees the level on a graphic, and a high-level alarm if one is raised (Chapter 10).
+\item The historian, or a broker feeding many systems, carries it on to planners and engineers (Chapter 11).
+\end{enumerate}
+\prop{1.2}{The technician's chain} A wrong number on a screen can come from any link in that chain. The good technician checks the chain in order, from the field towards the screen or from the screen back to the field, and proves each link before moving on. Chapter 20 makes this a method.
+
+\sect{1.4 Levels and boundaries}
+The Purdue model, from the 1990s, arranges industrial systems in levels. It is still the common vocabulary, even where networks no longer follow it strictly (Chapter 17).
+\begin{tbl}{P{0.12\textwidth}P{0.3\textwidth}L}
+Level & Name & Examples\\\midrule
+0 & Process & Sensors, actuators, the physical plant\\
+1 & Basic control & PLCs, RTUs, safety controllers\\
+2 & Supervisory control & SCADA servers, HMIs, engineering workstations\\
+3 & Site operations & Historians, site management systems\\
+3.5 & Industrial DMZ & Replicated historians, patch and remote-access servers\\
+4 and 5 & Enterprise & Business systems, email, the internet\\
+\end{tbl}
+The levels tell you where trust changes. Traffic crossing between them should be deliberate, documented and filtered.
+
+\sect{1.5 In practice: one SCADA platform}
+\inpractice{Geo SCADA Expert} Schneider Electric's Geo SCADA Expert is a telemetry SCADA platform built for wide-area systems, and a useful example of the parts above.
+\begin{tbl}{P{0.28\textwidth}L}
+Component & Role\\\midrule
+Server & Holds the object database, runs drivers, logic, alarms and the built-in historian\\
+Drivers & Separate processes, one per protocol (DNP3, Modbus, IEC 60870, MQTT, Sparkplug B, OPC UA)\\
+ViewX & The engineering and operator client for Windows\\
+Virtual ViewX & ViewX delivered through a web browser\\
+Mobile apps & Mimics and trends on iOS and Android\\
+Standby servers & Synchronised copies of the main server for redundancy\\
+\end{tbl}
+Everything in its database is an object in a tree of groups: points, outstations, channels, mimics (graphics), trends and users. Other platforms use different words for the same things. Learn the ideas once and each new product becomes a vocabulary exercise.
+
+\sect{Exercises}
+\begin{enumerate}
+\item Why should a plant keep running safely if the SCADA server fails? (SCADA supervises; safety and fast control are local)
+\item Name the part of the system that stores ten years of values for engineers. (The historian)
+\item A system has 800 sites built from a 45-point template. How many points? (36,000)
+\item List the seven steps a wet-well level takes from the water to the operator. (Section 1.3)
+\end{enumerate}

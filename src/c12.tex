@@ -1,0 +1,80 @@
+\chap{Chapter 12. Process Control: PID to APC}
+Most of what SCADA supervises is controlled by loops: a level held by pump speed, a dissolved oxygen held by blower output, a pressure held by a valve. A technician who understands loops can tell a tuning problem from an instrument problem from a mechanical one. This chapter builds from the single loop to advanced process control (APC).
+
+\sect{12.1 Definitions}
+\defn{12.1}{PV, SP, MV} The \emph{process variable} is what you measure. The \emph{setpoint} is what you want. The \emph{manipulated variable} (controller output) is what the controller adjusts: a valve position, a pump speed.
+
+\defn{12.2}{Error}
+\[ e(t) = SP - PV(t) \]
+\defn{12.3}{Regulatory and advanced control} Regulatory control is the layer of single PID loops in the PLC or RTU. Advanced control sits above it and adjusts the setpoints of those loops, coordinating many variables at once.
+
+\defn{12.4}{Auto, manual and cascade} In \emph{auto} the controller drives the output. In \emph{manual} the operator sets the output directly. In \emph{cascade} the setpoint comes from another controller. A good controller changes mode without a bump in the output (\emph{bumpless transfer}).
+
+\sect{12.2 The PID controller}
+\law{12.1}{PID, ideal form} The output is the sum of three actions on the error:
+\[ u(t) = K_c \left[ e(t) + \frac{1}{T_i}\int_0^t e(\tau)\,d\tau + T_d\,\frac{de(t)}{dt} \right] \]
+\begin{tbl}{P{0.22\textwidth}P{0.28\textwidth}L}
+Term & Acts on & Effect\\\midrule
+Proportional, K\_c & The present error & Immediate push, proportional to how far off you are\\
+Integral, T\_i & The accumulated past error & Keeps pushing until the error is exactly zero\\
+Derivative, T\_d & The rate of change & Anticipates; brakes a fast-moving PV. Amplifies noise, so often left off\\
+\end{tbl}
+\defn{12.5}{Integral windup} When the output is at a limit (valve fully open) but the error persists, the integral keeps growing. When the error finally reverses, the output stays saturated until the integral unwinds, causing a large overshoot. Controllers include anti-windup; check it is enabled.
+
+\sect{12.3 Modelling a process with a step test}
+\law{12.2}{First order plus dead time} After a step change Δu in the output at time zero:
+\[ y(t) = K\,\Delta u\,\left(1 - e^{-(t-\theta)/\tau}\right), \qquad t \ge \theta \]
+\begin{tbl}{P{0.08\textwidth}P{0.2\textwidth}P{0.3\textwidth}L}
+ & Name & Meaning & From a step test\\\midrule
+K & Process gain & How far the PV finally moves per unit of output & Δy / Δu\\
+θ & Dead time & Delay before anything happens & Time until the PV first moves\\
+τ & Time constant & How quickly it then responds & Time from first movement to 63.2\% of the final change\\
+\end{tbl}
+The figure 63.2\% is 1 − 1/e. After 3τ the response is 95\% complete; after 5τ, 99.3\%.
+
+\wex{12.1} In manual, a valve is stepped from 40\% to 50\%. The flow, in percent of range, sits still for 5 s, then rises from 30\% to 50\%, passing 42.6\% at 35 s after the step. K = 20 / 10 = 2; θ = 5 s; 63.2\% of the rise is 12.6\%, reached at 35 s, so τ = 30 s.
+
+\onsite Step tests are done in manual, with the operators' agreement, in steady conditions, with a step big enough to see above the noise but small enough to be safe. Record the trend: it is also evidence of how the plant really behaves.
+
+\sect{12.4 Tuning}
+\law{12.3}{Lambda tuning for PI control} Choose a desired closed-loop time constant λ; larger is slower and more robust.
+\[ K_c = \frac{\tau}{K(\lambda + \theta)}, \qquad T_i = \tau \]
+For the process above with λ = 15 s: K\_c = 30 / (2 × 20) = 0.75 and T\_i = 30 s.
+
+\law{12.4}{Ziegler–Nichols ultimate cycle} Raise the gain with integral and derivative off until the loop oscillates steadily at gain K\_u with period P\_u. Then for PID: K\_c = 0.6 K\_u, T\_i = P\_u / 2, T\_d = P\_u / 8. This drives the plant to the edge of instability during the test; lambda tuning is preferred on real plant.
+
+\law{12.5}{The dead-time limit} No tuning makes a loop respond faster than its dead time. When θ is larger than τ, PID must be detuned heavily. Communication delay adds directly to θ, which is why fast loops are closed in the RTU or PLC and never across the SCADA network.
+
+\rul{12.1}{Fix the plant before the tuning} Before retuning an oscillating loop, check the valve or drive. A sticking valve (stiction), a worn positioner or a transmitter with too much damping produce cycles that no tuning cures. Put the loop in manual: if the PV still cycles, the cause is not the controller.
+
+\sect{12.5 Beyond the single loop}
+\textbf{Cascade.} One controller's output is another's setpoint: a level controller sets a flow controller's setpoint. The inner loop absorbs disturbances before the outer loop feels them.
+
+\textbf{Feedforward.} Measure a disturbance d and correct for it before it reaches the PV: u\_ff = −(K\_d / K\_p) × d, where K\_d and K\_p are the disturbance and process gains. Aeration controlled on incoming load as well as dissolved oxygen is an example.
+
+\textbf{Model predictive control (MPC).} The core of most APC. Every cycle the controller uses a model to predict the next few minutes, chooses a sequence of moves that keeps the outputs near target without violating limits, applies only the first move, and repeats with fresh measurements. It handles many inputs and outputs together, respects limits explicitly, and copes with long dead times because the model sees them coming.
+
+\sect{12.6 Where the savings are}
+\law{12.6}{Running closer to a limit} A variable with standard deviation σ must run z standard deviations inside a limit. Cutting σ from σ₁ to σ₂ lets the average move toward the limit by Δ = z(σ₁ − σ₂). With z = 1.645 (95\% confidence), cutting σ from 2.0 to 0.8 gains 1.97 units of throughput.
+
+\law{12.7}{Pump affinity laws} For a centrifugal pump at speed N, flow is proportional to N, head to N², and power to N³.
+
+\wex{12.2} A 75 kW pump slowed to 80\% speed draws 75 × 0.8³ = 38.4 kW, a saving of nearly half. Over 6,000 hours at \$0.25 per kWh that is about \$55,000 a year. The affinity laws assume a friction-dominated system; with high static head the saving is smaller.
+
+\wex{12.3} A 200 kW pump must run 6 hours a day to fill a reservoir. At a peak rate of \$0.40 per kWh it costs \$480 a day; moved to an off-peak rate of \$0.15, \$180. Scheduling alone saves \$109,500 a year: slow, supervisory optimisation that suits wide-area SCADA.
+
+\sect{12.7 What APC needs from SCADA}
+\begin{itemize}
+\item Trustworthy measurements: correct scaling, sensible deadbands, honest quality (Chapters 2 and 3).
+\item History for building models (Chapter 11).
+\item Regulatory loops that already work. APC on top of badly tuned loops fails.
+\item A safe fallback: if the APC or its communications stop, loops revert to local setpoints.
+\end{itemize}
+
+\sect{Exercises}
+\begin{enumerate}
+\item Step test: output 20\% to 30\%; PV 50 to 65; dead time 8 s; 63.2\% reached 48 s after the step. Find K, θ, τ. (1.5; 8 s; 40 s)
+\item Lambda-tune that process with λ = 20 s. (K\_c = 0.95; T\_i = 40 s)
+\item A 110 kW pump runs at 90\% speed. Find the power. (80.2 kW)
+\item A loop cycles in auto. In manual the PV still cycles. Is the cause the tuning? (No: look at the process, valve or another loop)
+\end{enumerate}

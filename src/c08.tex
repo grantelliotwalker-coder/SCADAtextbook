@@ -1,0 +1,69 @@
+\chap{Chapter 8. Industrial Networks, Timing and Redundancy}
+SCADA now runs on Ethernet from the server room to, increasingly, the instrument. This chapter covers the network ideas a technician uses daily, how clocks are synchronised across a network, and the ways networks are made redundant.
+
+\sect{8.1 Network basics for the technician}
+\defn{8.1}{Managed switch} A switch that can be configured and monitored: VLANs, port speeds, redundancy protocols, port mirroring and diagnostics. Industrial networks should use managed switches; unmanaged ones are invisible when they fail.
+
+\defn{8.2}{VLAN} A virtual LAN: one physical switch divided into separate logical networks. VLANs separate traffic, but they are a network convenience, not a security boundary on their own (Chapter 17).
+
+\defn{8.3}{Port mirroring} Copying a port's traffic to another port, where a laptop or monitoring sensor can watch it without disturbing it. The first step in diagnosing protocol problems.
+
+\onsite Learn to read a packet capture. Wireshark decodes Modbus, DNP3, IEC 104, OPC UA, MQTT and GOOSE. A capture taken at the right place settles arguments between vendors in minutes.
+
+\sect{8.2 How a clock is synchronised}
+NTP and PTP both exchange four timestamps: t₁ when the request leaves, t₂ when it arrives, t₃ when the reply leaves, t₄ when it arrives. t₁ and t₄ are read on the client's clock; t₂ and t₃ on the server's.
+
+\law{8.1}{Offset and delay} Assuming the path takes equally long each way, the server is ahead of the client by θ, and the round trip takes δ:
+\[ \theta = \frac{(t_2 - t_1) + (t_3 - t_4)}{2}, \qquad \delta = (t_4 - t_1) - (t_3 - t_2) \]
+\wex{8.1} t₁ = 0, t₂ = 2.150 ms, t₃ = 2.250 ms, t₄ = 1.100 ms. δ = 1.100 − 0.100 = 1.000 ms; θ = (2.150 + 1.150) / 2 = 1.650 ms. The client steps its clock forward by 1.65 ms.
+
+\law{8.2}{Asymmetry error} If the outbound and return paths take d\_out and d\_back, the offset is wrong by half the difference:
+\[ \varepsilon = \frac{d_{out} - d_{back}}{2} \]
+A frame that waits 400 µs in a busy switch on the way out but not on the way back makes the clock wrong by 200 µs.
+
+\begin{tbl}{P{0.25\textwidth}LL}
+ & NTP & PTP (IEEE 1588)\\\midrule
+Timestamps & In software & In hardware, at the network interface\\
+Typical accuracy & Milliseconds on a good LAN & Below a microsecond\\
+Good enough for & SCADA servers, logs, most RTUs & Sampled Values, synchrophasors, motion control\\
+\end{tbl}
+\defn{8.4}{PTP roles} A \emph{grandmaster} is the reference, usually disciplined by GNSS (GPS). A \emph{boundary clock} terminates time on one port and regenerates it on the others. A \emph{transparent clock} measures how long each timing frame spent inside it and corrects for it. The Best Master Clock Algorithm elects the grandmaster. The power utility profile is IEC/IEEE 61850-9-3.
+
+PTP beats NTP by about three orders of magnitude because hardware timestamps and PTP-aware switches remove the software and queueing delays of Law 8.2. One ordinary switch in the path ruins it.
+
+\sect{8.3 Holdover}
+GNSS signals are weak and can be jammed or spoofed. When the grandmaster loses satellites it runs on its own oscillator, which drifts (Law 3.3).
+\[ T_{holdover} = \frac{E_{max}}{y} \]
+\begin{tbl}{P{0.35\textwidth}LL}
+Oscillator & Frequency error y & Holdover within 1 µs\\\midrule
+Temperature-compensated crystal & 10⁻⁷ & 10 s\\
+Oven-controlled crystal & 10⁻⁹ & 1,000 s (17 minutes)\\
+Rubidium & 10⁻¹¹ & 100,000 s (28 hours)\\
+\end{tbl}
+Time is a single point of failure that most risk assessments miss. Ask how long the system stays in tolerance without satellites, and whether there is a second, independent source.
+
+\sect{8.4 Time-Sensitive Networking}
+\defn{8.5}{TSN} A set of IEEE 802.1 standards that make standard Ethernet deterministic: 802.1AS for time, 802.1Qbv for reserved time slots, 802.1CB for duplicate frames on separate paths. IEC/IEEE 60802 is the industrial profile. The promise is one network carrying control, video and IT traffic instead of separate fieldbuses.
+
+\sect{8.5 Network redundancy}
+\begin{tbl}{P{0.22\textwidth}P{0.3\textwidth}L}
+Method & Recovery after a break & Notes\\\midrule
+RSTP & Of the order of a second, sometimes less & Standard on most switches; fine for SCADA polling\\
+MRP (IEC 62439-2) & Tens to hundreds of milliseconds & Ring protocol\\
+PRP (IEC 62439-3) & Zero & Every frame sent on two independent networks; the receiver discards the duplicate\\
+HSR (IEC 62439-3) & Zero & The same idea in a ring, frames sent both ways round; every node must support it\\
+\end{tbl}
+\law{8.3}{Data lost during recovery} A stream of f frames per second loses about f × T\_rec frames during a recovery of T\_rec.
+
+\wex{8.2} A Sampled Values stream of 4,000 frames per second loses about 4,000 frames to a one-second RSTP recovery, 40 to a 10 ms MRP recovery, and none with PRP. A SCADA poll every few seconds does not notice any of them.
+
+\rul{8.1}{Choose redundancy from the tolerable gap} Ask what is the longest communication gap the application tolerates. Protection needs zero; most SCADA does not. PRP gives zero switchover time because there is no switchover: both paths are always live.
+
+\sect{Exercises}
+\begin{enumerate}
+\item t₁ = 0, t₂ = 5.0 ms, t₃ = 5.2 ms, t₄ = 1.2 ms. Find δ and θ. (1.0 ms; 4.5 ms)
+\item Why can PTP beat NTP by three orders of magnitude? (Hardware timestamps and PTP-aware switches)
+\item An oscillator is wrong by 5 × 10⁻⁸. How long until it is 10 µs out? (200 s)
+\item A 100 frame/s stream crosses a ring that recovers in 200 ms. How many frames are lost? (20)
+\item Describe PRP and HSR in a sentence each. (Section 8.5)
+\end{enumerate}

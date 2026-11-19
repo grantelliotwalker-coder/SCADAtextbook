@@ -1,0 +1,66 @@
+\chap{Chapter 14. Virtual PLCs and AI}
+Two changes are arriving in control rooms: control logic separated from the hardware it runs on, and artificial intelligence applied to plant data. Both are oversold. This chapter gives the technician enough to use them well and to ask the right questions.
+
+\sect{14.1 Software-defined automation}
+For decades the control program, its runtime and the hardware came as one box from one vendor. Software-defined automation separates them.
+
+\defn{14.1}{Virtual PLC} A PLC runtime running on a hypervisor or in a container on an industrial PC or server, with remote I/O over a deterministic network.
+
+\defn{14.2}{IEC 61131-3 and IEC 61499} IEC 61131-3 is the familiar scan-based standard: read inputs, run the program, write outputs, repeat. IEC 61499 is event-driven and designed for distribution: an application is drawn once, then deployed across several devices.
+
+\defn{14.3}{MTP and O-PAS} A Module Type Package is a vendor-neutral description of a process module, such as a dosing skid, so it can be integrated in hours instead of weeks. Open Process Automation (O-PAS) is a user-led standard to make DCS components interchangeable across vendors.
+
+\law{14.1}{Scan-based response time} With input delay T\_in, scan time T\_scan and output delay T\_out, an input that changes just after the inputs were read waits almost a whole scan, then a whole scan more:
+\[ T_{worst} = T_{in} + 2\,T_{scan} + T_{out}, \qquad T_{mean} \approx T_{in} + 1.5\,T_{scan} + T_{out} \]
+With 5 ms in, a 10 ms scan and 5 ms out: worst case 30 ms, average about 25 ms.
+
+\law{14.2}{Missed deadlines} A task running f times a second that overruns its deadline with probability p misses N = f × p × T deadlines in a period T.
+
+\wex{14.1} A virtual PLC runs a 1 ms task against a 2 ms deadline. Its average cycle is 1.00 ms. Under load, one cycle in 100,000 takes longer than 2 ms. Per day: 1,000 × 10⁻⁵ × 86,400 = 864 missed deadlines. The average looks perfect; the worst case decides whether the machine works. Ask for maximum jitter under load, measured over days.
+
+\wex{14.2} A controller now depends on a chain: server 0.9995, hypervisor 0.9995, I/O network 0.9999. By the series law (Law 9.6) that is 0.9989, about 9.6 hours a year without control. A redundant pair on two separate hosts, sharing only the network, reaches about 0.9999. Two virtual machines on the same host are not a redundant pair.
+
+Questions sceptics rightly ask: who is accountable when a virtual PLC on one vendor's hypervisor on another vendor's server misses a deadline? How is hard real-time proven on shared hardware? Where is the safety certification? And who pays when a 25-year asset sits on servers replaced every five years: four refreshes over its life?
+
+\sect{14.2 Three different things called AI}
+\defn{14.4}{Analytics and anomaly detection} Models that learn normal behaviour from historian data and flag deviation. Mature and useful for predictive maintenance and security monitoring.
+
+\defn{14.5}{Soft sensors and advanced control} Models that infer a value you cannot measure directly, such as ammonia from aeration and flow data, or that optimise setpoints. Model predictive control (Section 12.5) has done this for decades.
+
+\defn{14.6}{Generative and agentic AI} Language models that answer questions over plant data and draft code or documentation; in agentic form they also take actions through tools.
+
+\prop{14.1}{Advisory versus closed loop} An AI that recommends while a person decides is a decision-support tool. An AI that writes to a controller is part of the control system, and inherits every expectation of determinism, validation and management of change. They need different risk assessments.
+
+\sect{14.3 The base-rate problem}
+\law{14.3}{Precision} A detector with sensitivity s (the fraction of real problems it flags) and false-positive rate f, checking periods in which real problems occur a fraction π of the time, raises flags of which this fraction are real:
+\[ \text{precision} = \frac{s\,\pi}{s\,\pi + f\,(1-\pi)} \]
+\wex{14.3} A detector catches 99\% of real anomalies and wrongly flags 1\% of normal hours. Real anomalies occur one hour in a thousand.
+\[ \text{precision} = \frac{0.99 \times 0.001}{0.99 \times 0.001 + 0.01 \times 0.999} = 0.090 \]
+Only 9\% of its flags are real. Run hourly on 500 signals it raises about 120 false flags a day, more than a whole alarm budget (Section 10.3). Rare events need very low false-positive rates, and their flags belong in an engineer's review queue, not the operator's alarm list.
+
+\law{14.4}{Root-mean-square error} A soft sensor is judged against laboratory results by its typical error:
+\[ RMSE = \sqrt{\frac{1}{n}\sum_{i=1}^{n} (\hat{y}_i - y_i)^2} \]
+Models drift as the plant changes. Track the error against fresh laboratory results, and decide who retrains the model.
+
+\sect{14.4 Using AI safely}
+\begin{itemize}
+\item Context comes first. A point called FIC1023.PV means nothing to a model; units, asset hierarchy and operating mode must travel with the data (Section 11.5).
+\item A model that can call tools is a new privileged user. Give it read-only access by default; treat any write path like remote operator access.
+\item \textbf{Prompt injection.} Text hidden in a document, alarm message or work order can steer an agent. Any text field an attacker can influence is now an input.
+\item Operators over-trust confident answers. Show the evidence behind each answer.
+\item Good first uses: searching manuals, drawings and shift logs; summarising an alarm flood; drafting alarm rationalisation entries for a person to review.
+\end{itemize}
+
+\sect{14.5 Remember and ask}
+\say{Is it advising the operator or writing to the controller? Those are two different risk assessments.}
+\ask{What is the worst-case jitter under load, not the average?}
+\ask{What permissions does the agent hold, and where is the audit trail of its actions?}
+
+\sect{Exercises}
+\begin{enumerate}
+\item What is the core difference between IEC 61131-3 and IEC 61499? (Scan-based against event-driven and distributed)
+\item T\_in = 2 ms, T\_scan = 20 ms, T\_out = 3 ms. Find the worst-case response. (45 ms)
+\item A 2 ms task (500 per second) overruns with p = 2 × 10⁻⁶. Find the misses per day. (86.4)
+\item s = 0.95, f = 0.002, π = 0.001. Find the precision. (32\%)
+\item Why is prompt injection relevant to an alarm description field? (Anyone who can write that text can put instructions in front of an agent that reads it)
+\end{enumerate}

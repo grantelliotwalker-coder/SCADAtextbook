@@ -1,0 +1,73 @@
+\chap[Part V. The Working Technician]{Chapter 20. Commissioning, Testing and Fault-Finding}
+Everything in this book ends up in two activities: proving that a system works before it is handed over, and finding out why it has stopped working. This chapter gives a method for each.
+
+\sect{20.1 The testing lifecycle}
+\defn{20.1}{FAT} Factory Acceptance Test: the system tested at the integrator's premises, with simulated I/O, before it goes to site.
+
+\defn{20.2}{SAT} Site Acceptance Test: the installed system tested on site with real field devices, usually witnessed by the owner.
+
+\defn{20.3}{ITP} Inspection and Test Plan: the document that lists every test, how to do it, what should happen, and records what did happen. Each test is witnessed and signed, and every failure goes on a defects list.
+
+A typical ITP layout:
+\begin{tbl}{P{0.12\textwidth}L}
+Column & Contents\\\midrule
+Test ID & A unique number\\
+Control function & What is being tested: enable/disable, duty/assist start, alarm, interlock\\
+Test procedure & Exactly what the tester does, step by step\\
+Expected result & What must happen, written before the test\\
+Actual result & What did happen, written during the test\\
+Pass or fail & Judged against the expected result, not against what seems reasonable\\
+Witness initial & The witness confirms they saw it\\
+Defect list? & Every fail is logged, fixed and retested\\
+\end{tbl}
+The header records the date, the implementer, the witness, the subsystem under test and the environment (simulation, or live on the system).
+
+\sect{20.2 What to test}
+\begin{enumerate}
+\item \textbf{Point-to-point (I/O) checks.} Every input and output, from the field device to the SCADA screen: operate the device or simulate the signal (Chapter 2), confirm the right point changes, with the right value, units and state text.
+\item \textbf{Functional tests.} Each control function in each mode: enable and disable, auto and manual, duty and standby, start and stop delays, interlocks.
+\item \textbf{Boundary tests.} Values exactly at a threshold, just inside and just outside. If a start condition is ‘beyond setpoint minus deadband’, a value exactly on the threshold must \emph{not} trigger it.
+\item \textbf{Limit tests.} Each adjustable setpoint above its maximum and below its minimum must be rejected and revert to the last good value; a value in range must be accepted and retained.
+\item \textbf{Alarm tests.} Each alarm raises, shows the right text and priority, clears, and appears in the alarm history (Chapter 10).
+\item \textbf{Failure tests.} Lost communications show stale quality (Rule 3.1); a failed instrument shows bad quality and the logic does the safe thing; equipment that becomes unavailable is handled as designed.
+\item \textbf{Redundancy tests.} Server failover and switch-back, network path failure, power supply failure (Section 9.5).
+\end{enumerate}
+\rul{20.1}{Ask the design question when a test reveals one} Tests often expose behaviour nobody specified: should a lost ‘available’ signal stop a running assist pump immediately, or only stop it starting again? Do not decide it yourself on the day. Record it and ask the process engineer.
+
+\sect{20.3 A method for fault-finding}
+\begin{enumerate}
+\item \textbf{Define the symptom exactly.} Which point, which screen, since when, all the time or sometimes, one site or many.
+\item \textbf{Find what changed.} Most faults follow a change: a patch, a password, a configuration edit, a restart, a new device.
+\item \textbf{Split the chain.} Check halfway along the path from field to screen (Section 1.3). The fault is on one side.
+\item \textbf{Prove each layer with an independent tool.} A loop calibrator for the signal, the RTU's own diagnostics, a packet capture for the protocol, a generic OPC UA or MQTT client for the server, the server's own logs.
+\item \textbf{Change one thing at a time,} and put it back if it made no difference.
+\item \textbf{Record what you found and did,} so the next person, possibly you in a year, does not start again.
+\end{enumerate}
+\law{20.1}{Half-splitting} A chain of N links with one fault is found in at most ⌈log₂ N⌉ checks by testing the middle each time, against up to N − 1 checking link by link.
+\[ k = \lceil \log_2 N \rceil \]
+A 16-link chain from transmitter to client display takes at most 4 checks, against up to 15.
+
+\rul{20.2}{Read the log before guessing} Servers, drivers and clients log the exact reason a connection or point failed. A status such as BadSubscriptionIdInvalid or ‘certificate rejected’ is worth more than an hour of trying things.
+
+\sect{20.4 Worked case: a bridge that would not deliver data}
+\wex{20.1} An old system's data is to reach a new SCADA through an OPC DA-to-UA bridge (Definition 6.2). The faults met, in order, and how each layer was proved:
+\begin{enumerate}
+\item The bridge service would not start: the account lacked the ‘Log on as a service’ right. Granted; the service started (Section 6.1).
+\item The bridge could not read the DA server: DCOM permissions. Corrected; the bridge's log showed its address space built.
+\item The SCADA could browse and select a point, but the point showed a configuration error. A generic OPC UA test client read the same point with good quality: the bridge was proven, and the fault was in the SCADA client.
+\item After the bridge was restarted, the SCADA's log showed BadSubscriptionIdInvalid: its old subscription no longer existed (Section 6.3). Disabling and re-enabling the subscription object created a new one.
+\item With signing enabled, the server log showed the client's certificate in the rejected folder; it was trusted. The connection then failed because the session was activating as anonymous: the user identity had been set on the point, not on the server connection object (Section 16.3).
+\end{enumerate}
+Each step was settled by a log line or an independent tool, never by guessing. The service then ran under a personal login, which works until that person's password changes; moving it to a dedicated service account (Rule 6.1) finished the job.
+
+\sect{20.5 Handover}
+A system is not finished until the next person can maintain it: as-built drawings and point lists; configuration exported and committed (Section 13.5); passwords and certificates recorded in the proper vault with their expiry dates; the ITP signed with all defects closed or accepted; and the failover and backup procedures tested, not just written.
+
+\sect{Exercises}
+\begin{enumerate}
+\item What is the difference between FAT and SAT? (Factory with simulation, against site with real devices)
+\item A start condition is ‘DO below setpoint minus deadband’. What should a reading exactly on that threshold do? (Not trigger a start)
+\item How many checks at most to find one fault in a 32-link chain by half-splitting? (5)
+\item A generic OPC UA client reads good values but the SCADA shows a configuration error. Where is the fault? (In the SCADA's point or connection configuration)
+\item Name four things a system needs before handover. (Section 20.5)
+\end{enumerate}

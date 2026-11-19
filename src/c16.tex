@@ -1,0 +1,58 @@
+\chap{Chapter 16. Securing the Protocols}
+Modbus, DNP3 and the first OPC were designed for closed networks where anyone who could reach a device was assumed to be allowed to. Secure versions now exist for nearly every protocol in Part II. This chapter covers what each provides, how to configure the common ones, and why they are so often left switched off.
+
+\sect{16.1 Authentication without encryption}
+\defn{16.1}{Message authentication code, MAC} A short tag computed from a message and a secret key. Only a holder of the key can produce the right tag, so a valid tag proves who sent the message and that it was not altered. It does not hide the message. HMAC is the standard construction from a hash function.
+
+\defn{16.2}{Challenge and response} The receiver of a critical request replies with a random challenge, and the sender must return a MAC over the challenge and the request. A recorded old reply is useless, because the next challenge is different.
+
+\prop{16.1}{Integrity before secrecy} For most control traffic, proving a command is genuine matters more than hiding it. Authentication-only modes also leave the traffic readable by passive monitoring (Chapter 18), which encryption would blind.
+
+\sect{16.2 What exists}
+\begin{tbl}{P{0.27\textwidth}L}
+Protocol & Security option\\\midrule
+DNP3 & Secure Authentication (IEEE 1815, SAv5): challenge and response with HMAC, session keys refreshed from a longer-lived update key. Authenticates controls and setpoint writes; does not encrypt. Wrap in TLS for confidentiality\\
+IEC 60870-5, IEC 61850 & IEC 62351: Part 3 TLS profiles, Part 5 authentication for IEC 60870-5 and DNP3, Part 6 GOOSE and Sampled Values, Part 8 role-based access control\\
+Modbus & Modbus/TCP Security: Modbus inside TLS on port 802, with X.509 certificates that carry a role for authorisation\\
+EtherNet/IP & CIP Security: TLS and DTLS, device identity certificates\\
+MQTT & TLS on port 8883, per-client credentials or client certificates, per-topic access control lists on the broker\\
+OPC UA & Built in: application certificates, user authentication, message signing and encryption (Section 16.3)\\
+\end{tbl}
+DNP3 Secure Authentication has two modes. In \emph{challenge} mode the outstation challenges every critical request, costing an extra exchange. In \emph{aggressive} mode the master attaches the MAC to the request itself, saving the round trip on slow links.
+
+\wex{16.1} On a 9,600 bit/s radio channel each byte takes about 1.04 ms. If a challenge and reply add 75 bytes to a control, that is 78 ms on air plus two radio key-ups of perhaps 100 ms each: roughly 0.3 s extra per control. Acceptable for a pump start, and the reason aggressive mode exists. (Byte counts and key-up times vary with configuration; measure your own.)
+
+\sect{16.3 OPC UA security settings}
+\begin{tbl}{P{0.25\textwidth}L}
+Security mode & Meaning\\\midrule
+None & No signing, no encryption. In production this is a finding\\
+Sign & Every message signed: integrity and authenticity\\
+SignAndEncrypt & Signed and encrypted: adds confidentiality\\
+\end{tbl}
+The \emph{security policy} sets the algorithms. Basic128Rsa15 and Basic256 are deprecated; Basic256Sha256 is the usual floor, and Aes128\_Sha256\_RsaOaep or Aes256\_Sha256\_RsaPss are preferred where both ends support them. Client and server must offer a matching mode and policy, and setting a single secure policy on a server removes the None endpoint that old clients may still be trying to use.
+
+User authentication sits on top: anonymous, username and password, or user certificate. Turn anonymous off once named users work. In some SCADA clients the identity used for the session is set on the server connection object, not on individual points: if the server's log shows the session activating as anonymous, look there.
+
+\law{16.1}{Trust-list entries} With c clients and s servers that all connect to each other, self-signed certificates need 2cs trust entries; certificates from a site CA need only the CA's certificate on each node, c + s.
+
+\wex{16.2} 20 clients and 50 servers: 2,000 trust entries self-signed, each redone at renewal; 70 with a site CA. A Global Discovery Server (OPC UA Part 12) issues and renews certificates centrally. Auto-accepting unknown certificates defeats the model, and is how most plants still run.
+
+\sect{16.4 Why adoption is slow}
+\begin{itemize}
+\item Key and certificate management across thousands of devices with 20-year lives is harder than the cryptography.
+\item Both ends must support it. One old RTU on a multi-drop line holds back the lot.
+\item Encryption blinds passive monitoring unless planned for.
+\item Fast protection traffic cannot afford the latency (Chapter 7).
+\end{itemize}
+\law{16.2}{Key count} Among n devices, a key for every pair needs n(n − 1) / 2; one key per device shared only with the master needs n. 300 outstations need 300 keys in a star, against 44,850 pairwise, which is why telemetry security is built as a star around the master.
+
+\onsite Where a device cannot be secured, protect the path to it (Section 17.4): a firewall that permits only the master's address and only the function codes needed, monitoring, and physical security. Record the reason as a compensating countermeasure.
+
+\sect{Exercises}
+\begin{enumerate}
+\item Which port and transport does secure Modbus use? (TLS over TCP, port 802)
+\item What does DNP3 Secure Authentication not do? (Encrypt)
+\item 5 OPC UA clients and 30 servers. Find the trust entries self-signed and with a CA. (300; 35)
+\item An OPC UA client fails with a trusted certificate and the server log shows ‘identity is Anonymous’ while anonymous logins are disabled. Where do you look? (The client's user identity setting, on its server connection)
+\item 50 devices. Find the keys needed pairwise and in a star. (1,225; 50)
+\end{enumerate}

@@ -1,0 +1,5 @@
+src/*.aux
+src/*.log
+src/*.out
+src/*.toc
+src/*.pdf

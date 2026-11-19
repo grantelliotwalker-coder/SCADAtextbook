@@ -1,0 +1,121 @@
+\chap{Chapter 13. Scripting, APIs and Configuration as Code}
+The technicians who get the most done are the ones who stop doing repetitive work by hand. This chapter covers enough Python to automate SCADA tasks, how programs reach a SCADA system, the migration of old scripting away from VBScript, and treating configuration as code.
+
+\sect{13.1 Python in one sitting}
+Python is a general-purpose language that reads almost like English. Indentation, not brackets, marks blocks. Type each example and run it; reading alone will not teach programming.
+\begin{code}
+pressure = 6.02                      # float: a decimal number
+count = 156                          # int: a whole number
+name = "Pump 1"                      # str: text
+running = True                       # bool
+readings = [5.9, 6.0, 6.2]           # list
+point = {"name": "PT-101", "units": "bar"}   # dict
+
+for r in readings:
+    if r > 6.1:
+        print(f"High: {r} bar")
+\end{code}
+Laws from Chapters 2 and 3 as functions:
+\begin{code}
+def scale(raw, raw_min, raw_max, eu_min, eu_max):
+    """Law 2.3: linear scaling to engineering units."""
+    return eu_min + (raw - raw_min) / (raw_max - raw_min) * (eu_max - eu_min)
+
+def counter_delta(new, old, bits=16):
+    """Law 2.6: counter increase allowing for rollover."""
+    return (new - old) % (2 ** bits)
+
+print(scale(13.6, 4, 20, 0, 10))     # 6.0
+print(counter_delta(120, 65500))     # 156
+\end{code}
+Field data is messy. Catch failures instead of crashing:
+\begin{code}
+try:
+    value = float("n/a")
+except ValueError:
+    value = None                     # treat as bad quality
+\end{code}
+
+\sect{13.2 How programs reach a SCADA system}
+\defn{13.1}{API} Application Programming Interface: the documented functions through which a program controls another piece of software. Every call runs with the permissions of the account it logged in as.
+
+Most SCADA platforms offer three routes: a programming API for creating, configuring and controlling; SQL access (often through ODBC) for reading many things at once; and an OPC UA or MQTT interface for live data. Use SQL to read in bulk, the API to change things.
+
+\inpractice{Geo SCADA} Since the 2025 release Geo SCADA has a built-in Python interface: programs run inside the server, edited in ViewX, or standalone from any PC. The documentation is the Client API Guide installed with the product, the database schema browser on the server's web port, sample programs, and Schneider's Python client samples on GitHub. Its database also appears as SQL tables through ODBC:
+\begin{code}
+import pyodbc
+cnxn = pyodbc.connect("DSN=MySCADA;UID=user;PWD=password")
+cursor = cnxn.cursor()
+cursor.execute("SELECT FullName, CurrentValueFormatted FROM CDBPoint")
+for row in cursor.fetchall():
+    print(row.FullName, row.CurrentValueFormatted)
+\end{code}
+\rul{13.1}{Treat scripts like PLC logic} Review them, test them on a development or standby system, version them (Section 13.5), and never store passwords in them.
+
+\sect{13.3 What to automate, and why}
+\begin{itemize}
+\item Bulk creation of template instances from a spreadsheet of sites.
+\item Audits: every point with alarms disabled, every outstation silent for 24 hours.
+\item Bulk changes: a new deadband on 4,000 pressure points.
+\item Integration: weather or tariff data from a web service into points.
+\item Scheduled reports and exports.
+\end{itemize}
+\law{13.1}{Break-even} A script taking t\_dev to write, replacing a manual task of t\_m per item with t\_a per item, pays for itself after n* items:
+\[ n^* = \frac{t_{dev}}{t_m - t_a} \]
+\law{13.2}{Error accumulation} If each manual operation goes wrong with probability p, then over n operations:
+\[ P(\text{at least one error}) = 1 - (1 - p)^n \]
+\wex{13.1} A script takes 4 hours to write; the manual job takes 3 minutes per object; the script 1 second. Break-even is 240 / (3 − 0.017) ≈ 81 objects. A careful engineer who mistypes one entry in 200 has only a 0.7\% chance of doing 1,000 objects without an error. A script is either wrong everywhere, which testing catches, or right everywhere.
+
+\sect{13.4 Migrating old scripts: VBScript to JavaScript}
+Many SCADA graphics contain scripts written in VBScript. Microsoft announced its deprecation in October 2023: an optional feature from Windows 11 24H2, disabled by default from around 2027, then removed. Every VBScript mimic script therefore has a limited life, and vendors are providing upgrade paths (Geo SCADA 2025 R2, for example, converts client scripting to JavaScript, with a built-in debugger).
+
+\begin{tbl}{P{0.25\textwidth}P{0.3\textwidth}L}
+Idea & VBScript & JavaScript\\\midrule
+Declare & Dim x & let x; or const x = 5;\\
+Compare equal & If a = b Then & if (a === b) \{\\
+Not equal & a <> b & a !== b\\
+Logic & And, Or, Not & \&\&, ||, !\\
+Join text & "P" \& n & "P" + n\\
+Comment & ' note & // note\\
+Remainder & a Mod b & a \% b\\
+Error handling & On Error Resume Next & try \{ ... \} catch (e) \{ ... \}\\
+\end{tbl}
+The traps: JavaScript is case sensitive; = assigns and === compares; "5" + 3 is the text "53"; text positions count from 0, not 1; VBScript's Round(2.5) is 2 (banker's rounding) but Math.round(2.5) is 3; and On Error Resume Next hid failures that JavaScript will expose. Expect conversion to reveal old bugs.
+
+\law{13.3}{Migration effort} L lines converted and tested at r lines per hour take T = L / r. 340 graphics with scripts averaging 45 lines, at 60 lines an hour, is 255 hours. Inventory first, convert control scripts before cosmetic ones, and convert templates before instances.
+
+\sect{13.5 Configuration as code}
+When configuration can be exported as text, it can be treated like source code: every change recorded, reviewed, compared and reversible.
+
+\defn{13.2}{JSON} JavaScript Object Notation (RFC 8259): plain text for structured data, with objects, arrays, strings, numbers, booleans and null.
+\begin{code}
+{ "PT-101": { "type": "AnalogueInput", "units": "bar",
+              "range": {"min": 0, "max": 10},
+              "high_alarm": 8.5, "deadband": 0.05, "historic": true } }
+\end{code}
+\defn{13.3}{Git} A version-control system. A \emph{repository} records the complete history of a folder; a \emph{commit} is a snapshot with an author, time and message; a \emph{branch} is a separate line of work merged once approved. Each commit is identified by a hash of its content and its parent, so history cannot be altered without detection.
+
+A diff shows exactly what changed:
+\begin{code}
+    "units": "bar",
+-   "high_alarm": 8.5,
++   "high_alarm": 9.5,
+\end{code}
+Anyone can see that a high alarm limit was raised from 8.5 to 9.5 bar, who did it and when; the commit message should say why.
+
+\defn{13.4}{GitOps} Running a system from a repository that is the single source of truth: the desired state is \emph{declarative}, \emph{versioned and immutable}, \emph{pulled automatically}, and \emph{continuously reconciled} with what is actually running.
+
+\defn{13.5}{Drift} The differences between the desired configuration and the actual one: an alarm inhibited during commissioning and never restored, a limit nudged on night shift. A scheduled export-and-compare finds it.
+
+\law{13.4}{Change downtime} With n changes a year, a fraction CFR causing a fault, and mean time to restore MTTR: T\_down = n × CFR × MTTR. 120 changes, 10\% faulty, 3 hours each: 36 hours a year. With reviewed diffs and one-command rollback, 4\% faulty and 20 minutes to restore: 1.6 hours.
+
+A change workflow: export and commit a baseline; branch for the job; change on a development system and commit with the reason; a second person reviews the diff; test; merge and apply in a planned window; tag the release; if anything goes wrong, revert. Never commit passwords or keys, and keep the repository inside networks the organisation controls: configuration reveals how the plant works.
+
+\sect{Exercises}
+\begin{enumerate}
+\item t\_dev = 2 h, t\_m = 5 min, t\_a = 2 s. Find the break-even count. (25)
+\item p = 0.01, n = 300. Find the chance of at least one error. (95.1\%)
+\item What does "10" + 5 give in JavaScript, and how do you get 15? ("105"; Number("10") + 5)
+\item 520 scripts averaging 30 lines at 50 lines an hour. Find the effort. (312 hours)
+\item Name the four GitOps principles. (Declarative, versioned and immutable, pulled automatically, continuously reconciled)
+\end{enumerate}

@@ -1,0 +1,53 @@
+\chap{Chapter 18. Real Attacks and the Kill Chain}
+Industrial attacks are rare, but they are real, and several have targeted exactly the kind of systems a SCADA technician maintains. This chapter gives what actually happened in the incidents people quote, the model that explains how such attacks unfold, and what a technician can do about them.
+
+\sect{18.1 The cases}
+\begin{tbl}{P{0.21\textwidth}LP{0.27\textwidth}}
+Incident & What happened & Lesson\\\midrule
+Maroochy Shire, Queensland, 2000 & A former contractor used a radio and stolen control software to command sewage pump stations, with at least 46 attempts in March and April. About 800,000 litres of raw sewage were released & An insider with knowledge, no malware. Unauthenticated radio telemetry\\
+Stuxnet, 2010 & Targeted Siemens S7-315 and S7-417 controllers driving centrifuges, and replayed normal readings to operators & The HMI can lie\\
+Ukraine, 2015 & Attackers used the operators' own HMIs to open breakers at three distribution companies, then wiped workstations and bricked serial-to-Ethernet converters. About 225,000 customers lost power & Remote access and native tools are enough\\
+Industroyer, 2016 & First malware to speak grid protocols directly: IEC 60870-5-101 and -104, IEC 61850 and OPC DA & Protocol knowledge is now packaged\\
+TRITON, 2017 & Targeted a Triconex safety instrumented system; found because a bug in it tripped the plant & The safety system is a target\\
+Colonial Pipeline, 2021 & Ransomware hit IT only; the company shut the pipeline because it could not bill or be sure of containment & OT outage without OT compromise\\
+PIPEDREAM, 2022 & A modular toolkit for Schneider and Omron PLCs, CODESYS and OPC UA, found before use & Tools target whole vendor families\\
+Unitronics PLCs, 2023 & Internet-exposed PLCs at water utilities defaced using a default password & Low skill, real impact\\
+FrostyGoop, 2024 & Modbus TCP commands to heating controllers in Lviv. Dragos reported over 600 apartment buildings without heat for almost 48 hours; Ukrainian accounts cited by critics describe a smaller, shorter outage & Modbus has no authentication; no exploit was needed\\
+Volt Typhoon (VOLTZITE) & Living off the land with built-in tools, stealing GIS data, network diagrams and configuration & The engineering data is the target\\
+\end{tbl}
+
+\sect{18.2 The ICS Cyber Kill Chain}
+\defn{18.1}{ICS Cyber Kill Chain} The model of Assante and Lee, in two stages. \emph{Stage 1} looks like an IT intrusion: reconnaissance, delivery, exploitation, installation, command and control, and then learning the process and stealing engineering data. \emph{Stage 2} develops, tests and delivers an attack built for that particular plant.
+
+\prop{18.1}{The defender's window} A meaningful physical attack needs process knowledge, which takes time to gather. That dwell time is the defender's chance, but only if someone is watching the OT network.
+
+\law{18.1}{Detection within the dwell time} If monitoring has a probability d of spotting an intruder on any one day, the chance of detection within T days is:
+\[ P_{detect} = 1 - (1-d)^T \]
+Over a 90-day Stage 2 preparation, d = 0.02 gives 84\%; d = 0.002 gives 16.5\%. The figures are illustrations; visibility multiplies the value of every day the attacker needs.
+
+\law{18.2}{Barriers in series} An attacker who must pass independent barriers succeeding with probabilities p\_i reaches the process with probability ∏ p\_i. Remote access 0.3, IT-to-OT firewall 0.2, engineering workstation 0.5, unauthenticated PLC write 0.9: 0.027. Multi-factor authentication on remote access (0.05) cuts it to 0.0045. Real barriers are not fully independent: stolen administrator credentials may pass several at once.
+
+The Dragos 2026 Year in Review (covering 2025) reported adversaries moving from pre-positioning to mapping control loops; VOLTZITE reached Stage 2 after extracting configuration files and alarm data from engineering workstations, and ransomware groups affecting industrial organisations rose 49\% to 119.
+
+\sect{18.3 Patterns, and what the technician does about them}
+\begin{itemize}
+\item Most incidents start in IT or through remote access. Know every remote-access path into your system, and remove the ones nobody uses.
+\item Attackers use protocols exactly as designed. Detection needs to know normal process behaviour; you are the person who knows it.
+\item Engineering workstations, project files, alarm data and network diagrams are the crown jewels. Do not leave them on laptops, shared drives or email.
+\item Several famous incidents exploited no vulnerability: an insider (Maroochy), a default password (Unitronics), valid Modbus (FrostyGoop), an IT dependency (Colonial). Change defaults, remove leavers' access promptly, and close exposed ports.
+\item Report anything odd: an unexplained setpoint change, a login at 3 a.m., a PLC in program mode. Most incidents are found by someone who noticed.
+\end{itemize}
+
+\sect{18.4 Remember and ask}
+\say{FrostyGoop did not exploit anything. It sent valid Modbus.}
+\ask{Could our monitoring tell the difference between an engineer and an attacker writing the same setpoint?}
+\ask{How long could we run the plant with the IT network completely gone?}
+
+\sect{Exercises}
+\begin{enumerate}
+\item Which attack targeted a safety system, and how was it found? (TRITON; a bug tripped the plant)
+\item What separates Stage 1 from Stage 2? (Gaining access and learning, against building a plant-specific attack)
+\item Name two incidents where no vulnerability was exploited. (Any two of Maroochy, Unitronics, FrostyGoop, Colonial)
+\item d = 0.01 per day, dwell time 60 days. Find the detection probability. (45.3\%)
+\item Barriers 0.4, 0.25 and 0.8. Find the chance of reaching the process. (0.08)
+\end{enumerate}

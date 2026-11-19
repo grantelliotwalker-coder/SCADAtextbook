@@ -1,0 +1,78 @@
+\chap{Chapter 17. IEC 62443 and Secure Architecture}
+IEC 62443 is the industrial security standard everyone cites and few have read. This chapter gives its structure, what a security level really is, how plants are divided into zones and conduits, and the architecture patterns that follow, including what replaces the Purdue diagram.
+
+\sect{17.1 Who each part is for}
+\begin{tbl}{P{0.12\textwidth}P{0.3\textwidth}L}
+Part & Written for & Subject\\\midrule
+2-1 & Asset owner & The owner's security programme\\
+2-4 & Service provider, integrator & Requirements on those who build and maintain systems\\
+3-2 & Owner and integrator & Risk assessment; zones and conduits\\
+3-3 & System integrator & System-level security requirements\\
+4-1 & Product supplier & The secure development lifecycle\\
+4-2 & Product supplier & Technical requirements for components\\
+\end{tbl}
+\prop{17.1}{Shared responsibility} Supplier, integrator and owner are in series. A certified component does not make a secure system, and a secure design does not survive a careless integrator, or a technician who leaves a default password.
+
+\sect{17.2 Zones and conduits}
+\defn{17.1}{Zone} A group of assets with the same security requirements.
+
+\defn{17.2}{Conduit} The controlled communication path between two zones.
+
+Zones are drawn from a risk assessment, not copied from the VLAN list: a VLAN is a network convenience, a zone is a statement about consequence. Safety systems normally get their own zone; so does wireless, and anything a vendor can reach remotely.
+
+\law{17.1}{Possible conduits} Among z zones there are at most z(z − 1) / 2 pairs. Eight zones could be joined by 28 conduits; a good design uses only the few the process needs, each documented, filtered and monitored.
+
+\sect{17.3 Security levels}
+\begin{tbl}{P{0.12\textwidth}L}
+Level & Protection against\\\midrule
+SL 1 & Casual or accidental violation\\
+SL 2 & Intentional attack with simple means and generic skills\\
+SL 3 & Sophisticated means, moderate resources, industrial-control skills\\
+SL 4 & Sophisticated means with extended resources: a state-level actor\\
+\end{tbl}
+\defn{17.3}{SL-T, SL-C and SL-A} The \emph{target} level a zone needs, from the risk assessment; the \emph{capability} a product can deliver when properly configured; and the level \emph{achieved} once installed. A product with SL-C 3 installed with default passwords has an SL-A nowhere near 3.
+
+There are seven foundational requirements (FRs): FR1 identification and authentication, FR2 use control, FR3 system integrity, FR4 data confidentiality, FR5 restricted data flow, FR6 timely response to events, FR7 resource availability.
+
+\law{17.2}{Security level is a vector} A security level is one number per FR. For each, the gap is g\_i = max(0, SL-T\_i − SL-A\_i), and a zone meets its target only when every gap is zero.
+
+\wex{17.1} A treatment-plant control zone:
+\begin{tbl}{P{0.18\textwidth}*{7}{>{\centering\arraybackslash}X}}
+ & FR1 & FR2 & FR3 & FR4 & FR5 & FR6 & FR7\\\midrule
+SL-T & 2 & 2 & 3 & 1 & 3 & 2 & 3\\
+SL-A & 2 & 1 & 3 & 1 & 2 & 2 & 3\\
+Gap & 0 & 1 & 0 & 0 & 1 & 0 & 0\\
+\end{tbl}
+Two gaps: operators share one login (FR2), and the conduit to the business network allows more than the historian traffic it exists for (FR5). Confidentiality, already at target, gets no money: availability and integrity normally outrank secrecy in a plant.
+
+\defn{17.4}{Compensating countermeasure} When a legacy device cannot meet a requirement, the zone meets it instead: a firewall permitting only named hosts and functions, monitoring, physical access control, or a jump host with individual logins. This is how brownfield plants comply without replacing every controller.
+
+\sect{17.4 Architecture after Purdue}
+The Purdue levels (Section 1.4) began as a functional model and became a security model by accident. Cloud historians, cellular RTUs and sensors that talk straight to a vendor's platform have broken the neat diagram. A defensible position: Purdue as a rigid network diagram is dying; Purdue as a way of reasoning about trust boundaries is fine; zones and conduits are what you actually build.
+
+\textbf{Zero trust, adapted for OT.} You cannot put an agent on a 15-year-old PLC, so trust is enforced \emph{around} devices: micro-segmentation at the cell level; remote access brokered through the DMZ with multi-factor authentication and session recording; protocol-aware firewalls that permit Modbus reads but block writes.
+
+\law{17.3}{A dependency is a series element} If a local action needs a remote service, A\_action = A\_local × A\_remote. A local HMI at 0.9999 whose logins must reach a central identity server at 0.995 is usable only 0.9949 of the time: about 45 hours a year locked out instead of under one. Never let safety or basic operation depend on a remote authentication server; provide cached credentials or a break-glass account.
+
+\defn{17.5}{DMZ rule} No traffic passes straight through the industrial DMZ. Sessions from either side terminate there, with different credentials on each side.
+
+\defn{17.6}{Data diode} Hardware that physically permits traffic one way only, used to get data out of high-consequence zones. It cannot be misconfigured into letting traffic back in. Because no acknowledgement can return, diodes repeat each message: with loss p per copy and r copies, P\_lost = pʳ.
+
+\textbf{The SANS Five ICS Critical Controls:} an ICS-specific incident response plan; a defensible architecture; ICS network visibility and monitoring; secure remote access; and risk-based vulnerability management.
+
+\textbf{Cyber-Informed Engineering.} Assume the digital layer will be compromised and engineer out the worst outcome physically. A relief valve, a float switch hardwired to a pump stop, or a hardwired overspeed trip cannot be hacked.
+
+\sect{17.5 Remember and ask}
+\say{Security level is a vector, not a number; and SL-C is not SL-A.}
+\say{What is the worst thing this process can physically do, and is there a non-digital barrier in front of it?}
+\ask{What is the SL-T for this zone, and who signed off the risk assessment behind it?}
+\ask{How does the remote access system behave when its cloud service is unreachable?}
+
+\sect{Exercises}
+\begin{enumerate}
+\item Explain SL-T, SL-C and SL-A in one sentence each. (Definition 17.3)
+\item Six zones. Find the maximum number of conduits. (15)
+\item Target (3, 3, 3, 1, 2, 3, 3); achieved (2, 3, 3, 1, 2, 1, 3). Find the gap vector. ((1, 0, 0, 0, 0, 2, 0))
+\item Name the five SANS ICS critical controls. (Section 17.4)
+\item What does a data diode guarantee that a firewall does not? (Physically one-way traffic, whatever the configuration)
+\end{enumerate}

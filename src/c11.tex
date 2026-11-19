@@ -1,0 +1,82 @@
+\chap{Chapter 11. Historians and the Unified Namespace}
+A historian stores every point's value over time and answers questions about the past. SCADA is for operators acting now; the historian is for engineers, planners and managers asking about last month or the last ten years, without loading the control system. This chapter covers the mathematics every historian relies on, then the architecture now used to share data across a whole organisation.
+
+\sect{11.1 Definitions}
+\defn{11.1}{Historian} A time-series database: for each point, a sequence of (value, timestamp, quality) records, compressed and indexed by time.
+
+\defn{11.2}{Asset model} A model of the plant that gives points context: this pressure belongs to this pump at this station. Built from templates, exactly as SCADA templates are (Definition 1.7).
+
+\inpractice{AVEVA PI} AVEVA PI is one of the most widely used enterprise historians. Its Data Archive stores the time series, its Asset Framework (AF) holds the asset model, PI Vision draws displays, and connectors collect from sources, including an MQTT connector that understands Sparkplug B. Other historians use other names for the same parts.
+
+\sect{11.2 Getting data into the historian}
+\begin{tbl}{P{0.25\textwidth}P{0.37\textwidth}L}
+Route & How & When to choose it\\\midrule
+Direct feed & The SCADA's own historian export to the historian & The historian is the only consumer\\
+Through a broker & SCADA publishes Sparkplug B; the historian's connector subscribes & Several consumers, or a broker already exists\\
+OPC UA & The historian collects from the SCADA's OPC UA server & Live values only; site standards require OPC\\
+\end{tbl}
+\prop{11.1}{Why the broker route scales} With k consumers, point-to-point integration needs k separate feeds from the SCADA server. Through a broker it needs one, and each new consumer adds nothing to the SCADA load (Law 5.1). The Sparkplug route also preserves device timestamps and back-fills outages as historical data (Definition 5.11).
+
+\inpractice{Geo SCADA to PI} Geo SCADA can feed PI directly (its historic data export to PI Server or AVEVA CONNECT) or through its Sparkplug Publisher and PI's MQTT Sparkplug connector. Check how SCADA quality maps to historian quality on whichever route you use.
+
+\sect{11.3 Exception and compression}
+\law{11.1}{Exception test} At the source, a new value v at time t is sent if it has moved, or if it has been quiet too long:
+\[ |v - v_{sent}| > ExcDev \quad \text{or} \quad t - t_{sent} \ge ExcMax \]
+This is the deadband of Law 3.1 with a maximum silence added, so a steady value still reports and proves the source is alive.
+
+\law{11.2}{Swinging door compression} At the archive, a point is discarded if a straight line between the stored points either side would rebuild it within a tolerance CompDev. From the last stored point (t₀, v₀), each new point narrows a corridor of slopes:
+\[ s_U = \min_i \frac{(v_i + CompDev) - v_0}{t_i - t_0}, \qquad s_L = \max_i \frac{(v_i - CompDev) - v_0}{t_i - t_0} \]
+While s\_L ≤ s\_U one straight line still fits, and nothing is stored. When s\_L > s\_U the previous point is stored and becomes the new start. Picture two doors hinged at the last stored point, swinging closer with each value: when they cross, a point must be stored.
+
+\wex{11.1} Last stored point (0 s, 50.0); CompDev = 0.5.
+\begin{tbl}{P{0.06\textwidth}P{0.08\textwidth}LLLLP{0.2\textwidth}}
+t & v & Upper & s\_U & Lower & s\_L & Result\\\midrule
+1 & 50.2 & 0.700 & 0.700 & −0.300 & −0.300 & discard\\
+2 & 50.4 & 0.450 & 0.450 & −0.050 & −0.050 & discard\\
+3 & 50.6 & 0.367 & 0.367 & 0.033 & 0.033 & hold\\
+4 & 52.0 & 0.625 & 0.367 & 0.375 & 0.375 & store (3, 50.6)\\
+\end{tbl}
+Five raw points become two stored points, and the line between them reproduces the discarded values exactly.
+
+\rul{11.1}{Tune from the instrument} Set ExcDev a little below the instrument's real precision and CompDev at about twice ExcDev. Too tight stores noise; too loose erases real events. A 2\% compression deviation on a 0–100 bar transmitter hides any movement under 2 bar.
+
+\sect{11.4 Reading history correctly}
+\law{11.3}{Interpolation} The value at time t between stored points (t₁, v₁) and (t₂, v₂):
+\[ v(t) = v_1 + (v_2 - v_1)\,\frac{t - t_1}{t_2 - t_1} \]
+Every trend in a compressed historian is drawn this way. Digital states and setpoints are not interpolated; they hold the previous value as a step.
+
+\law{11.4}{Time-weighted average} Each value counts in proportion to how long it lasted.
+\[ \bar v = \frac{\sum_i v_i\,\Delta t_i}{\sum_i \Delta t_i} \]
+\wex{11.2} A flow is 10 L/s for 50 minutes, then 100 L/s for 10 minutes. The plain average of the two stored values is 55 L/s, which is wrong. The time-weighted average is (10 × 50 + 100 × 10) / 60 = 25 L/s. With exception-reported data a plain average is almost always wrong.
+
+\law{11.5}{Totalising a rate} Total volume is the integral of flow, approximated by trapezoids:
+\[ V \approx \sum_i \frac{Q_i + Q_{i+1}}{2}\,(t_{i+1} - t_i) \]
+\wex{11.3} Flows at 0, 10, 20 and 30 minutes of 10, 14, 12 and 8 L/s give 7,200 + 7,800 + 6,000 = 21,000 L. Watch the units: a flow in m³/h integrated over seconds is wrong by a factor of 3,600.
+
+\sect{11.5 The Unified Namespace}
+\defn{11.3}{Unified Namespace, UNS} A single, organised place, nearly always an MQTT broker, where every producer publishes its current state once and every consumer subscribes to what it needs. The topic tree usually follows the ISA-95 hierarchy: Enterprise / Site / Area / Line / Cell, or for a water business Utility / Plant / Process area / Train / Unit.
+
+A UNS holds the present, not the past. History stays in the historian, which subscribes like any other consumer.
+
+\law{11.6}{Interface count} Among n systems that all exchange data, point-to-point integration needs one interface per pair; a hub needs one connection per system.
+\[ I_{p2p} = \frac{n(n-1)}{2}, \qquad I_{UNS} = n \]
+\wex{11.4} SCADA, historian, maintenance, laboratory, business and analytics systems: 15 interfaces point to point, or 6 connections through a UNS. A seventh system adds 6 interfaces the old way, and 1 through the broker.
+
+\begin{tbl}{P{0.25\textwidth}L}
+Layer & What it gives\\\midrule
+Transport (MQTT) & Topics, delivery, Last Will (Chapter 5)\\
+State (Sparkplug B) & Birth and death, sequence numbers, store and forward (Chapter 5)\\
+Semantics (data model) & What each value means: names, units, asset relationships\\
+\end{tbl}
+\rul{11.2}{The data model comes first} A UNS with no agreed data model is just a faster way to move badly named points. Agree the names, units and hierarchy before the first point is published, because renaming a million points afterwards is a project in itself.
+
+The broker becomes critical infrastructure: cluster it, secure it with TLS and per-topic access rules, and decide who may publish commands.
+
+\sect{Exercises}
+\begin{enumerate}
+\item Stored points (100 s, 20.0) and (400 s, 26.0). Find the value at 250 s. (23.0)
+\item A level is 2 m for 3 hours and 5 m for 1 hour. Find the time-weighted average. (2.75 m)
+\item Flows of 20, 30, 30 and 10 L/s at 5-minute spacing. Find the total. (22,500 L)
+\item Nine systems exchange data. Find the interfaces point to point and through a UNS. (36; 9)
+\item Where does history live in a UNS architecture? (In a historian that subscribes)
+\end{enumerate}

@@ -1,0 +1,61 @@
+\chap{Chapter 3. Points, Quality and Time}
+A number on its own is not information. To be trusted, a value must say when it was true and whether it can be believed. This chapter covers the three parts of every point, how values are filtered before they are sent, and why the clocks matter as much as the instruments.
+
+\sect{3.1 Definitions}
+\defn{3.1}{Point, or tag} One named item of data. A point is always three things together:
+\[ \text{point} = (v,\ t,\ q) \]
+a value, a timestamp and a quality. A value without a timestamp cannot be trended or put in order. A value without a quality cannot be trusted. Different products call points tags, metrics, attributes or PI points; they are the same idea.
+
+\defn{3.2}{Point types} An \emph{analogue} point holds a continuous number such as pressure. A \emph{digital} point holds a state such as running or stopped; a \emph{multi-state} point holds one of several, such as auto, manual or off. A \emph{counter} holds a running total. A \emph{setpoint} or \emph{output} point is written by SCADA to the field.
+
+\defn{3.3}{Quality} A flag saying how far the value can be trusted.
+\begin{tbl}{P{0.2\textwidth}L}
+Quality & Meaning\\\midrule
+Good & Read successfully from a healthy instrument\\
+Bad & The input has failed: open circuit, out of range, card fault\\
+Uncertain & Read, but doubtful: near a range limit, a substituted value\\
+Stale (comms lost) & The last value received, from a site that has stopped talking\\
+Overridden & Entered by hand, not measured\\
+\end{tbl}
+\rul{3.1}{Never hide quality} An operator must be able to tell a live value from a stale or forced one at a glance. The worst display in telemetry is a healthy-looking number from a site that died an hour ago.
+
+\sect{3.2 Deadband and report by exception}
+Sending every sample wastes bandwidth. Field devices send a value only when it has moved far enough to matter.
+
+\law{3.1}{Deadband} A new value x is reported only if it differs from the last reported value by more than the deadband d, often set as a percentage p of span.
+\[ \text{report if } |x - x_{last}| > d, \qquad d = \frac{p}{100} \times \text{span} \]
+\defn{3.4}{Report by exception, RBE} A field device reports only changes, instead of answering every poll with every value. A periodic \emph{integrity poll} or a maximum silence time still confirms, every so often, that a quiet site is alive.
+
+\prop{3.1}{RBE traffic} If N points are scanned and a fraction c of them cross their deadband each second, the update rate falls from N per poll to cN per second.
+\[ f_{RBE} = c\,N, \qquad \text{reduction} = 1 - \frac{f_{RBE}}{f_{poll}} \]
+\wex{3.1} 10,000 points polled every second generate 10,000 updates per second. With report by exception and 2\% of points changing per second, the rate is 200 per second: a 98\% reduction. This one idea is why DNP3 and Sparkplug B (Part II) scale to very large systems.
+
+\rul{3.2}{Set deadbands from the instrument} A deadband smaller than the instrument's noise sends noise. One larger than the smallest change that matters to the process hides events. Start a little above the noise and below the smallest change an operator needs to see.
+
+\sect{3.3 Timestamps}
+Timestamps are usually stored as a count of milliseconds since 1 January 1970 UTC, and shown in local time. Always ask \emph{where} a timestamp was applied.
+\begin{itemize}
+\item At the field device, when the value changed: accurate, and preserved through buffering and outages. DNP3 events and Sparkplug B carry device timestamps.
+\item At the server, when the value arrived: delayed by polling and the network, and wrong for every value buffered during an outage.
+\end{itemize}
+\defn{3.5}{Sequence of events, SOE} A record of exactly which events happened in which order, at millisecond resolution, used to find the first cause of a trip.
+
+\law{3.2}{Ordering condition} Two events Δ apart, stamped by devices whose clocks are wrong by at most e₁ and e₂, can be put in the right order only if:
+\[ \Delta > e_1 + e_2 \]
+Two breakers open 5 ms apart at different sites. To be sure which opened first, the two clocks together may be wrong by less than 5 ms. If clocks differ by 200 ms, the question after a trip, \emph{what happened first?}, cannot be answered.
+
+\sect{3.4 Keeping clocks right}
+\law{3.3}{Drift} A clock whose frequency is wrong by a fraction y gains or loses y seconds every second. One part per million is 86.4 ms a day, or about half a minute a year.
+\[ e(t) = e_0 + y\,t \]
+Every device clock therefore needs synchronising: RTUs from the SCADA master (DNP3 time sync) or from NTP; servers from an NTP source, ideally a GNSS-disciplined clock on the control network. Chapter 8 covers PTP, which is needed where microseconds matter.
+
+\onsite Check time at commissioning and after every outage. A device clock reset to 1970 or 2000 produces events that sort to the bottom of every list, and fails every certificate check (Chapter 15).
+
+\sect{Exercises}
+\begin{enumerate}
+\item What three things make up a point? (Value, timestamp, quality)
+\item 50,000 points, 1\% changing per second. Find the report-by-exception rate. (500 per second)
+\item A 0–5 m level has a deadband of 0.5\% of span. What is d? (25 mm)
+\item Two clocks may each be 3 ms wrong. What is the closest pair of events they can order reliably? (More than 6 ms apart)
+\item A clock is 5 parts per million fast. How far is it out after a week? (3.02 s)
+\end{enumerate}

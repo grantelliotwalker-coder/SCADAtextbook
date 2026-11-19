@@ -1,0 +1,64 @@
+\chap[Part III. The SCADA System]{Chapter 9. Servers, Scale and Redundancy}
+Large SCADA systems now run to more than a million points. This chapter covers what that load means for a server, why servers fail suddenly rather than gradually, and how redundancy keeps the system available.
+
+\sect{9.1 The four loads of a point count}
+A point count sets four loads: memory to hold the database, the update rate from the field, history storage, and client traffic.
+
+\law{9.1}{Update rate} With N points and a fraction c changing per second:
+\[ \lambda = c\,N \ \ \text{updates per second} \]
+\law{9.2}{History storage} With N\_h historised points, each storing a record every T\_log seconds on average, b bytes per record, kept for T\_ret:
+\[ S = \frac{N_h}{T_{log}} \cdot b \cdot T_{ret} \]
+\wex{9.1} 1.5 million points, all historised once a minute at an assumed 32 bytes per record: 25,000 records a second, 800 kB a second, 69 GB a day and 25 TB a year. At this scale deadbands and logging intervals are storage decisions worth terabytes; historian compression (Chapter 11) is what makes them affordable.
+
+\sect{9.2 CPU threads}
+\defn{9.1}{Core and thread} A core is a physical processor. A thread is a sequence of instructions the operating system can schedule on a core. A program split into threads can use several cores at once.
+
+A SCADA server has naturally parallel work (many drivers, many clients) and naturally serial work (one ordered stream of changes into the database).
+
+\law{9.3}{Amdahl's law} If a fraction p of the work can run in parallel on n cores, the speed-up is:
+\[ S(n) = \frac{1}{(1-p) + \dfrac{p}{n}}, \qquad \lim_{n\to\infty} S(n) = \frac{1}{1-p} \]
+A workload that is 90\% parallel runs only 6.4 times faster on 16 cores, and never more than 10 times faster however many cores are added. The serial part is the ceiling, which is why clock speed per core still matters when specifying a SCADA server.
+
+\sect{9.3 Why servers fall over suddenly}
+\law{9.4}{Utilisation and queue delay} Updates arrive at rate λ and the server can process μ per second. The server is stable only if ρ = λ / μ < 1, and in the simplest queue model the mean time in the system is:
+\[ W = \frac{1}{\mu - \lambda} \]
+\begin{tbl}{P{0.3\textwidth}LL}
+Arrival rate (μ = 100,000/s) & Utilisation & Mean delay\\\midrule
+75,000 /s & 0.75 & 40 µs\\
+90,000 /s & 0.90 & 100 µs\\
+99,000 /s & 0.99 & 1 ms\\
+99,900 /s & 0.999 & 10 ms\\
+\end{tbl}
+Delay does not grow in a straight line; it explodes near full load. A server at 75\% is comfortable; the same server at 99\% feels broken. Size for the peak (a storm, or every site reconnecting at once after a network outage), not the average.
+
+\sect{9.4 Availability}
+\law{9.5}{Availability} With mean time between failures MTBF and mean time to repair MTTR:
+\[ A = \frac{MTBF}{MTBF + MTTR} \]
+\law{9.6}{Parallel and series} n independent units, any one of which can carry the load, and components that must all work:
+\[ A_{parallel} = 1 - (1 - A)^n, \qquad A_{series} = \prod_i A_i \]
+\wex{9.2} One server at A = 0.999 is down 8.76 hours a year. A main and standby pair gives 1 − 0.001² = 0.999999, about 31.5 seconds a year. Put that pair behind a single network switch at 0.999 and the series law gives 0.998999. The weakest series element dominates: spend money where the series law says the loss is.
+
+\wex{9.3} A telemetry chain: device 0.995, cellular link 0.99, single broker 0.999, server pair 0.999999. In series: 0.9841. Clustering the broker barely helps (0.9850). The cellular link is the weak element.
+
+The parallel law assumes independent failures. Two virtual servers on the same host, a shared power supply, or one bad configuration pushed to both servers breaks that assumption.
+
+\sect{9.5 Main and standby servers}
+\defn{9.2}{Hot standby} A second server kept continuously synchronised with the main server's database and live data, ready to take over within seconds. Some systems add further standbys at a second site for disaster recovery.
+
+\onsite Prove failover, do not assume it. At commissioning and at least yearly: switch over deliberately, confirm that clients reconnect, alarms are not lost or duplicated, controls work from the new main, and history has no gap. Then switch back. Record how long each step took.
+
+Redundancy also makes maintenance possible without an outage: patch the standby, switch over, patch the former main (Section 19.4).
+
+\sect{9.6 Clients}
+Operators now reach SCADA from desktop clients, web browsers and phones. Every additional client type is another path into the system to secure (Part IV), and the same display may need to work on a 4K control-room screen and a phone. Server sizing must include client load: each open graphic subscribes to its points.
+
+\inpractice{Geo SCADA} Geo SCADA's ViewX desktop client, Virtual ViewX in a browser, and mobile apps showing the same mimics and trends are an example of one server serving three client types.
+
+\sect{Exercises}
+\begin{enumerate}
+\item A workload is 75\% parallel. Find the speed-up on 8 cores and the limit. (2.91; 4)
+\item 200,000 points logged every 15 s at 32 bytes per record. Find storage per year. (13.5 TB)
+\item μ = 20,000 /s and λ = 19,000 /s. Find the mean delay. (1 ms)
+\item Three servers at A = 0.99 in parallel. Find system availability. (0.999999)
+\item Why are two virtual servers on one host not a redundant pair? (They share a failure: the host)
+\end{enumerate}

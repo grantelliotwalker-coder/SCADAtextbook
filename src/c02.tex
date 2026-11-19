@@ -1,0 +1,75 @@
+\chap{Chapter 2. Signals and Instruments}
+Every number on a SCADA screen starts as a voltage, a current or a contact on a terminal block. Most faults a technician meets are found here, not in the software. This chapter covers the signals, the arithmetic of turning them into engineering values, and how to check them.
+
+\sect{2.1 Signal types}
+\begin{tbl}{P{0.25\textwidth}L}
+Signal & Typical use\\\midrule
+4–20 mA analogue & Level, pressure, flow, analysers: the standard analogue signal\\
+Digital input & Run, fault, valve open/closed, float switch: a contact opens or closes\\
+Digital output & Start, stop, open, close: a relay or transistor drives a contactor or solenoid\\
+Analogue output & Speed reference to a drive, valve position demand: 4–20 mA out\\
+Pulse input & Flow meters and energy meters: one pulse per fixed quantity\\
+HART & A digital signal superimposed on the 4–20 mA loop, for configuration and diagnostics\\
+Fieldbus and Ethernet & Profibus, Modbus, Ethernet-APL: many values over one cable\\
+\end{tbl}
+
+\sect{2.2 The current loop}
+\defn{2.1}{Live zero} The zero of the measurement is 4 mA, not 0 mA. A broken wire (0 mA) is therefore distinguishable from a true zero reading. Most cards flag anything below about 3.6 mA, or above about 21 mA, as a fault (the NAMUR NE 43 limits).
+
+\law{2.1}{Ohm's law across the sense resistor} The input card measures the voltage across a precision resistor.
+\[ V = IR \quad\Rightarrow\quad 4\text{–}20\ \text{mA} \times 250\ \Omega = 1\text{–}5\ \text{V} \]
+\law{2.2}{Loop voltage budget} The supply must cover the transmitter's minimum voltage plus every resistive drop at full current.
+\[ V_{supply} \ \ge\ V_{tx,min} + I_{max}\,(R_{sense} + R_{cable} + R_{other}) \]
+where R\_other covers anything else in series: a barrier, a second indicator, a HART resistor.
+
+\wex{2.1} A 24 V supply feeds a transmitter needing at least 12 V, through a 250 Ω sense resistor and an intrinsically safe barrier of 300 Ω. At 20 mA the drops are 0.020 × (250 + 300) = 11 V, leaving 13 V for the transmitter: enough, but only just. Add a 250 Ω local indicator and the transmitter gets 8 V at full scale. The reading then sticks somewhere below 20 mA however high the level goes. A reading that flattens at the top of its range is often a loop budget fault.
+
+\onsite Use a loop calibrator. Measure the loop current in series (or with a clamp-on mA meter, without breaking the loop), compare it with the screen, then source or simulate 4, 12 and 20 mA and check that the SCADA value follows. Always tell the operators first: a simulated level can start or stop pumps.
+
+\sect{2.3 Scaling raw values}
+\law{2.3}{Linear scaling} A raw reading maps to engineering units (EU) by straight-line interpolation.
+\[ EU = EU_{min} + \frac{raw - raw_{min}}{raw_{max} - raw_{min}}\,(EU_{max} - EU_{min}) \]
+\wex{2.2} A 0–10 bar transmitter reads 13.6 mA.
+\[ P = 0 + \frac{13.6 - 4}{20 - 4} \times (10 - 0) = \frac{9.6}{16} \times 10 = 6.0\ \text{bar} \]
+\wex{2.3} The same loop on a card that reports 6,400 counts at 4 mA and 32,000 counts at 20 mA shows 19,200 counts.
+\[ P = \frac{19200 - 6400}{32000 - 6400} \times 10 = \frac{12800}{25600} \times 10 = 5.0\ \text{bar} \]
+\rul{2.1}{Scale once} Decide where scaling happens: in the transmitter, in the RTU, or in SCADA. Doing it in two places, or in none, is a classic commissioning fault. The range on the transmitter's nameplate, in the RTU configuration and in the SCADA point must all agree.
+
+\law{2.4}{Converter resolution} An n-bit analogue-to-digital converter divides its span into 2ⁿ steps.
+\[ \Delta = \frac{\text{span}}{2^n} \]
+A 12-bit converter on a 0–10 bar span resolves 10 / 4,096 = 2.44 mbar; a 16-bit converter 0.15 mbar. No software downstream can recover detail finer than this.
+
+\sect{2.4 Sampling}
+\law{2.5}{Nyquist} To capture a signal whose fastest change has frequency f\_max, sample faster than twice that frequency; in practice five to ten times.
+\[ f_s > 2 f_{max} \]
+A tank level that can swing through a full cycle in 60 s must be sampled at least every 30 s, and preferably every 6 to 12 s. A pressure surge that lasts 200 ms will never be seen by a system that scans once a second.
+
+\sect{2.5 Digital inputs and outputs}
+\defn{2.2}{Volt-free contact} A contact with no voltage of its own. The RTU supplies the wetting voltage, usually 24 V DC, through the contact to its input.
+
+\defn{2.3}{Normally open and normally closed} A normally closed (fail-safe) contact opens on alarm, so a cut cable or loss of power also gives the alarm. Use it for anything that matters: high-high levels, trips, emergency stops.
+
+\onsite When a digital point does not change, check in order: the field device actually operated; the voltage at the RTU terminal changes (24 V to 0 V); the input LED changes; the RTU's own diagnostic display changes; then communications and the SCADA point. Halfway along the chain, the fault is on one side or the other.
+
+\sect{2.6 Counters and pulse inputs}
+A counter has a fixed number of bits and wraps to zero when full. The true increase between two readings is found with modular arithmetic.
+
+\law{2.6}{Counter delta} With an n-bit counter:
+\[ \Delta C = (C_{new} - C_{old}) \bmod 2^n \]
+\law{2.7}{Flow from pulses} With K units per pulse, over an interval Δt:
+\[ Q = \frac{K\,\Delta C}{\Delta t} \]
+\wex{2.4} A 16-bit counter reads 65,500, then 120 a minute later. The meter gives 10 litres per pulse. ΔC = (120 − 65,500) mod 65,536 = 156 pulses; volume 1,560 L; flow 26 L/s. A system that subtracted without the rollover would record a huge negative flow.
+
+\sect{2.7 Smart instruments}
+\defn{2.4}{HART} A 1,200 bit/s digital signal superimposed on the 4–20 mA loop. It carries the instrument's range, tag, diagnostics and secondary variables without disturbing the analogue value. A handheld communicator or asset management software reads it.
+
+\defn{2.5}{Ethernet-APL} Two-wire, intrinsically safe Ethernet for process instruments: 10BASE-T1L at 10 Mbit/s over long cable runs. It brings IP networking, and therefore protocols such as OPC UA (Chapter 6), into hazardous areas where 4–20 mA and HART have ruled. At 10,000,000 / 1,200 ≈ 8,300 times the speed of HART, a diagnostic upload that took a minute takes a fraction of a second.
+
+\sect{Exercises}
+\begin{enumerate}
+\item A 0–250 kPa transmitter reads 9.2 mA. Find the pressure. (81.25 kPa)
+\item A 32-bit counter moves from 4,294,967,000 to 704. Find ΔC. (1,000)
+\item A 14-bit converter spans 0–100 °C. Find the resolution. (0.0061 °C)
+\item A 24 V loop has a 250 Ω resistor and a 12 V transmitter. What is the most extra series resistance it can take at 20 mA? (350 Ω)
+\item Why is a high-high level float switch wired normally closed? (A broken wire or lost supply also raises the alarm)
+\end{enumerate}

@@ -1,0 +1,74 @@
+\chap{Chapter 6. OPC, Gateways and Edge Systems}
+Not every device speaks the SCADA server's language. OPC standards, protocol gateways and edge computers are how the gaps are bridged. This chapter covers OPC Classic and OPC UA from the technician's side, then the architectures that use gateways and edge systems.
+
+\sect{6.1 OPC Classic}
+\defn{6.1}{OPC DA} OPC Data Access, from 1996: a standard way for Windows programs to read and write live values from a server, built on Microsoft COM and DCOM. Alongside it sat OPC HDA (historical data) and OPC A\&E (alarms and events).
+
+OPC DA works only on Windows, and reaching a server on another computer uses DCOM, whose security settings are notoriously hard to get right: launch and access permissions, the account a service runs as, ‘Log on as a service’ rights, and firewall rules for dynamic ports. Most OPC DA faults are permission faults.
+
+\rul{6.1}{Run services as service accounts} A bridge or OPC service that runs under a person's own login breaks when that person's password changes or their account is disabled. Use a dedicated service account with only the rights it needs, and document them.
+
+\defn{6.2}{DA-to-UA bridge (wrapper)} A program that connects to an OPC DA server locally, avoiding remote DCOM, and republishes the same items as an OPC UA server. Each DA item path typically becomes an OPC UA string NodeId. This is the usual way to bring an older system's data into a modern SCADA.
+
+\sect{6.2 OPC UA}
+\defn{6.3}{OPC UA} OPC Unified Architecture, IEC 62541: a platform-independent standard for industrial data exchange, with built-in security. Its binary transport is opc.tcp, default port 4840.
+
+\defn{6.4}{Address space} Everything a server exposes, arranged as a graph of \emph{nodes} joined by typed \emph{references}. It is an object model, not a tag list. There are eight node classes: Object, Variable, Method, ObjectType, VariableType, ReferenceType, DataType and View. A pump can be an object of type PumpType with variables, alarms and callable methods.
+
+\defn{6.5}{NodeId} The unique address of a node: a namespace and an identifier, such as ns=2;s=Aeration.Blower1.Speed.
+
+\defn{6.6}{Companion specification} An industry-agreed library of types built on OPC UA: PA-DIM for process instruments, PackML for packaging, umati for machine tools, and others. A server exposing custom variables is \emph{connected}; a client can use it once someone has mapped every name by hand. A server exposing a companion specification is \emph{interoperable}: every PumpType looks the same to every client.
+
+\sect{6.3 Subscriptions: where data is quietly lost}
+A client does not poll. It creates a \emph{subscription} with a publishing interval T\_p and adds \emph{monitored items}. The server samples each item every T\_s, queues the changes, and sends them at each publish.
+
+\law{6.1}{Monitored item queue} To deliver every change, the queue size q must satisfy:
+\[ q \ \ge\ \left\lceil \frac{T_p}{T_s} \right\rceil \]
+Otherwise the server discards values and the client never knows they existed.
+
+\wex{6.1} T\_s = 100 ms and T\_p = 1 s. Up to 10 changes can occur between publishes, so q must be at least 10. With the common default q = 1, a client receives only the latest value each second: fine for a display, wrong for a historian.
+
+\law{6.2}{Keep-alive and lifetime} A quiet subscription sends an empty keep-alive every K publishing intervals. If the client stops sending publish requests for L intervals, the server deletes the subscription. The standard requires L ≥ 3K.
+
+\onsite Subscriptions vanish when the server restarts. A client that reconnects its session but keeps using its old subscription sees the status \emph{BadSubscriptionIdInvalid} until it creates a new one. Disabling and re-enabling the subscription, or the server connection, in the client usually forces that. A connected session does not prove that data is flowing: check a value's timestamp is moving.
+
+\sect{6.4 OPC UA security in brief}
+Every application holds an X.509 \emph{application instance certificate}, and trust is mutual: each side must hold the other's certificate in its trust list. An unknown certificate lands in a \emph{rejected} folder until an engineer moves it to \emph{trusted}. On top of that sits \emph{user} authentication: anonymous, username and password, or a user certificate. Messages can be sent with security mode None, Sign, or SignAndEncrypt. Chapter 16 covers the settings; for fault-finding, remember the two layers are separate. A client with a trusted certificate can still be refused because it logged in as Anonymous.
+
+\onsite A generic OPC UA test client is the most useful tool in this chapter. Point it at the server: if the test client reads good values but the SCADA client does not, the fault is in the SCADA client's configuration, not the server.
+
+\sect{6.5 Two communication patterns}
+\begin{itemize}
+\item \textbf{Client/server}: sessions, subscriptions and monitored items. Rich and stateful; good for browsing, configuration and control.
+\item \textbf{PubSub (Part 14)}: connectionless publishing over UDP multicast, or through an MQTT broker, as UADP binary or JSON. OPC UA defines what the data means; MQTT carries it.
+\end{itemize}
+OPC UA FX (Field eXchange) extends OPC UA to controller-to-controller and controller-to-device communication across vendors, intended to run over Time-Sensitive Networking (Chapter 8).
+
+\sect{6.6 Gateways and edge systems}
+\defn{6.7}{Gateway} A device or server that translates between protocols: typically a polling protocol on the field side and publish-subscribe on the network side.
+
+\defn{6.8}{Edge system} Computing at the site rather than the control centre. It collects, buffers, pre-processes and publishes data, and keeps working when the wide-area link is down.
+
+\defn{6.9}{Connectivity server} One product with drivers for a very large range of PLCs and devices, presenting them all through standard interfaces such as OPC UA or MQTT. Use one where the SCADA has no native driver for a device. The cost is one more link in the chain, with its own licence, patching and failure modes.
+
+\inpractice{Kepware} PTC's Kepware KEPServerEX is the best-known connectivity server. It talks the device's own protocol; the SCADA reads Kepware through OPC UA or MQTT (its IoT Gateway option).
+
+Four common architectures:
+\begin{tbl}{P{0.32\textwidth}L}
+Architecture & How it works\\\midrule
+A. Native publishing devices & RTUs publish Sparkplug B to a broker; SCADA subscribes as host; points configure themselves\\
+B. Gateway for legacy devices & A gateway polls old Modbus or DNP3 devices locally and publishes upstream; only changes cross the slow link\\
+C. SCADA as data server & SCADA collects by any protocol and republishes (OPC UA server or Sparkplug publisher) to historians, analytics and business systems\\
+D. Tiered SCADA & Site-level SCADA publishes to central SCADA; each site runs on its own if the link fails\\
+\end{tbl}
+\law{6.3}{Edge aggregation} Replacing raw samples every T\_s with one aggregate (average, minimum, maximum) every T\_a reduces messages by the ratio T\_a / T\_s. One-second vibration samples sent as one-minute averages: 60 times fewer messages, while the edge keeps the raw data locally for fault investigation.
+
+\sect{Exercises}
+\begin{enumerate}
+\item Why do OPC DA connections between computers fail so often? (DCOM security and permissions)
+\item T\_s = 250 ms, T\_p = 2 s. Find the minimum queue size to lose nothing. (8)
+\item A SCADA client shows BadSubscriptionIdInvalid after the OPC UA server restarted. What does it need? (A new subscription)
+\item A generic client reads good values from a server; the SCADA does not. Where is the fault? (In the SCADA client's configuration)
+\item What does a companion specification standardise? (The types: structure and meaning of objects for one kind of equipment)
+\item Ten-second samples aggregated to 15-minute values. Find the reduction. (90)
+\end{enumerate}

@@ -1,0 +1,69 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=24mm,headsep=25pt,headheight=14pt,footskip=30pt]{geometry}
+\usepackage{fontspec}
+\usepackage{unicode-math}
+\setmainfont{DejaVu Serif}
+\setmonofont{DejaVu Sans Mono}[Scale=0.9]
+\setmathfont{latinmodern-math.otf}[Scale=1.2]
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xltabular}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{fancyvrb}
+\usepackage{xcolor}
+\usepackage{needspace}
+\usepackage[hidelinks,bookmarks=true]{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+\setlist{nosep,topsep=0pt,partopsep=0pt,leftmargin=27pt,labelsep=5.1pt,labelwidth=21.9pt,align=right}
+\setlist[enumerate]{label=\arabic*.}
+\setlist[itemize]{label=\textbullet}
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{6pt}
+\setlength{\LTpre}{6pt}\setlength{\LTpost}{6pt}
+\raggedbottom
+\emergencystretch=2em
+\sloppy
+
+% ---------- running heads ----------
+\newcommand{\curchap}{}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\itshape Principia SCADA}
+\fancyhead[R]{\small\itshape \curchap}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------- structure ----------
+\newcommand{\chap}[2][]{%
+  \clearpage
+  \renewcommand{\curchap}{#2}%
+  \ifx\relax#1\relax\else{\small\itshape #1\par}\vspace{2pt}\fi
+  {\LARGE\bfseries\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000\phantomsection\addcontentsline{toc}{section}{#2}#2\par}\vspace{4.8pt}\hrule height 0.4pt\vspace{7pt}}
+\newcommand{\sect}[1]{\par\needspace{9\baselineskip}\vspace{12.5pt}{\large\bfseries #1\par}\vspace{2.5pt}}
+\newcommand{\defn}[2]{\textbf{Definition #1 (#2).}\ }
+\newcommand{\law}[2]{\textbf{Law #1 (#2).}\ }
+\newcommand{\lawn}[1]{\textbf{Law #1.}\ }
+\newcommand{\prop}[2]{\textbf{Proposition #1 (#2).}\ }
+\newcommand{\wex}[1]{\textbf{Worked Example #1.}\ }
+\newcommand{\say}[1]{\textbf{Remember.}\ #1\par}
+\newcommand{\ask}[1]{\textbf{Ask.}\ #1\par}
+\newcommand{\verify}[1]{(#1)}
+\newcommand{\rul}[2]{\textbf{Rule #1 (#2).}\ }
+\newcommand{\onsite}{\textbf{On site.}\ }
+\newcommand{\inpractice}[1]{\textbf{In practice: #1.}\ }
+
+% tables: \begin{tbl}{spec} header \\ \midrule rows \end{tbl}
+\setlength{\LTleft}{0pt}\setlength{\LTright}{0pt}
+\newenvironment{tbl}[1]{\needspace{6\baselineskip}\xltabular{\textwidth}{#1}\toprule}{\bottomrule\endxltabular}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\DefineVerbatimEnvironment{code}{Verbatim}{xleftmargin=0pt,fontsize=\small}
+
+\makeatletter
+\g@addto@macro\normalsize{\setlength\abovedisplayskip{19pt plus 3pt minus 5pt}\setlength\belowdisplayskip{12pt plus 3pt minus 4pt}\setlength\abovedisplayshortskip{10pt plus 3pt}\setlength\belowdisplayshortskip{10pt plus 3pt}}
+\makeatother

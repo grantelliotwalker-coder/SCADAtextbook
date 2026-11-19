@@ -1,0 +1,122 @@
+\chap{Chapter 10. HMI Design and Alarm Management}
+Alarm management is unfashionable, and it is the area where a technician who has stood in a control room during an upset can speak with more authority than any vendor. This chapter gives the standard behind alarm systems, the arithmetic of measuring a real alarm system, and the design of displays that help operators instead of drowning them.
+
+\sect{10.1 Definitions}
+\defn{10.1}{Alarm} Under ISA-18.2 (IEC 62682): an audible and visible indication to the operator of an equipment malfunction, process deviation or abnormal condition \emph{that requires a timely response}. If there is no defined operator action, it is not an alarm. It may be an alert, an event or a status, and it belongs somewhere else.
+
+\defn{10.2}{Alarm philosophy} The site's rulebook for alarms: priorities, classes, colours, roles, performance targets and the rules for changing any of them.
+
+\defn{10.3}{Rationalisation} Reviewing every alarm against the philosophy and recording, in a master alarm database, its cause, consequence, operator action and the time available to act.
+
+\defn{10.4}{Nuisance alarms} A \emph{chattering} alarm repeatedly goes in and out of alarm in a short time. A \emph{stale} alarm stands for more than 24 hours. A \emph{flood} is more than ten alarms in ten minutes for one operator.
+
+\defn{10.5}{Shelving, suppression and disabling} \emph{Shelving} is temporary, operator-initiated and logged, and it expires. \emph{Suppression by design} hides an alarm automatically when the plant state makes it meaningless. \emph{Disabling} takes an alarm out of service under management of change. They are three different things and should be reported separately.
+
+The ISA-18.2 lifecycle runs: philosophy, identification, rationalisation, detailed design, implementation, operation, maintenance, monitoring and assessment, management of change, and audit. In conversation, philosophy and rationalisation are the two that matter.
+
+\sect{10.2 Setting priority}
+\law{10.1}{Priority from consequence and time} Priority comes from how severe the consequence of no action would be and how much time the operator has to act, not from who shouted loudest during commissioning. An illustrative matrix:
+\begin{tbl}{P{0.25\textwidth}LLL}
+Time to respond & Minor consequence & Major consequence & Severe consequence\\\midrule
+More than 30 minutes & Low & Low & Medium\\
+10 to 30 minutes & Low & Medium & High\\
+Less than 10 minutes & Medium & High & High\\
+\end{tbl}
+The site philosophy sets the real boundaries. A healthy result is roughly 80\% low, 15\% medium and 5\% high priority: if everything is urgent, nothing is.
+
+\sect{10.3 Measuring an alarm system}
+\begin{tbl}{P{0.4\textwidth}L}
+Measure & Benchmark (EEMUA 191, adopted by ISA-18.2)\\\midrule
+Average rate, comfortable & About 1 per 10 minutes per operator (about 150 a day)\\
+Average rate, manageable ceiling & About 2 per 10 minutes (about 300 a day)\\
+Flood & More than 10 alarms in 10 minutes\\
+Time in flood & Under about 1\%\\
+Priority distribution & About 80\% low, 15\% medium, 5\% high\\
+Stale and chattering alarms & Near zero\\
+\end{tbl}
+\law{10.2}{Alarm rate per operator} With N\_alarms alarms over a time T shared among N\_operators:
+\[ r = \frac{N_{alarms}}{T \cdot N_{operators}} \]
+Combining two control rooms onto one desk adds their alarm rates. 540 alarms a day shared by two operators is 270 each, or 1.9 per 10 minutes: at the ceiling. Rationalise the alarms before merging the screens, not after.
+
+\law{10.3}{Time in flood} Divide the period into ten-minute intervals and count those holding more than ten alarms.
+\[ F = \frac{\text{intervals with more than 10 alarms}}{\text{total intervals}} \times 100\% \]
+\law{10.4}{Bad-actor share} The share of all annunciations caused by the k most frequent alarms:
+\[ S_k = \frac{\sum_{i=1}^{k} n_i}{\sum_i n_i} \]
+\wex{10.1} One operator console logs 2,520 alarms in a week.
+\begin{enumerate}
+\item Daily rate: 2,520 / 7 = 360 a day, or 360 / 144 = 2.5 per 10 minutes. Above the manageable ceiling.
+\item Of the 1,008 ten-minute intervals, 19 held more than ten alarms: F = 19 / 1,008 = 1.9\%.
+\item The ten most frequent alarms caused 1,386 annunciations: S\_10 = 1,386 / 2,520 = 55\%.
+\item Fixing only those ten leaves 1,134 a week: 162 a day, or 1.1 per 10 minutes.
+\end{enumerate}
+Ten alarms, not ten thousand, move this console from overloaded to comfortable. Fix the bad actors first.
+
+\wex{10.2} At the Milford Haven refinery explosion of 1994, the UK Health and Safety Executive found that in the last 11 minutes the two operators had to recognise, acknowledge and act on 275 alarms: 275 / 11 = 25 a minute, or 250 per 10 minutes. That is 25 times the flood threshold and 250 times the comfortable rate. No person can act on an alarm every 2.4 seconds.
+
+The same measures in Python (Chapter 13), from a list of alarm times in seconds and their tag names:
+\begin{code}
+from collections import Counter
+
+def alarm_kpis(times_s, tags, operators=1):
+    span = max(times_s) - min(times_s) or 1
+    per10 = len(times_s) / (span / 600) / operators    # Law 10.2
+    bins = Counter(int(t // 600) for t in times_s)      # 10-min bins
+    n_bins = int(span // 600) + 1
+    flood_pct = 100 * sum(1 for c in bins.values() if c > 10) / n_bins
+    top10 = sum(c for _, c in Counter(tags).most_common(10))
+    return per10, flood_pct, 100 * top10 / len(tags)    # Laws 10.3, 10.4
+\end{code}
+
+\sect{10.4 Curing chatter}
+\law{10.5}{Alarm deadband} An alarm that sets at limit L clears only when the value returns past L by the deadband d. A noisy signal sitting near the limit stops chattering when d exceeds its peak-to-peak noise, roughly six standard deviations for random noise.
+\[ \text{set if } x > L, \qquad \text{clear if } x < L - d, \qquad d \gtrsim 6\sigma \]
+Commonly quoted starting points are about 5\% of span for flow, 2 to 5\% for level, 2\% for pressure and 1\% for temperature. An \emph{on-delay} raises the alarm only if the condition lasts a set time; an \emph{off-delay} holds it in until the condition has been clear for a set time. Deadband and delays are the cheapest fix for chatter.
+
+\wex{10.3} A wet-well level on a 0–5 m span has noise with σ = 0.02 m. A deadband of 6 × 0.02 = 0.12 m, or 2.4\% of span, stops it chattering at its high limit. A 30-second on-delay then rides through the surge when a pump starts.
+
+\sect{10.5 Advanced techniques}
+\begin{itemize}
+\item \textbf{State-based alarming.} Limits and suppression change with plant mode. A low-flow alarm on a pump that is stopped is noise.
+\item \textbf{Shelving.} Operator-initiated, time-limited and logged (Definition 10.5). Report shelved alarms at every shift handover.
+\item \textbf{First-out.} Capturing which alarm came first in a trip sequence. It depends on good time (Chapter 3).
+\end{itemize}
+
+\sect{10.6 High-performance HMI (ISA-101)}
+\begin{itemize}
+\item Grey, low-contrast backgrounds. Colour is reserved for abnormal conditions, so an alarm is the brightest thing on the screen.
+\item Colour is never the only indicator: pair it with shape or text, for colour-blind operators and bad monitors.
+\item Analogue indicators show where a value sits against its normal range, instead of bare numbers.
+\item Embedded trends, because direction and rate matter more than the instant value.
+\item A display hierarchy: Level 1 area overview, Level 2 unit control, Level 3 detail, Level 4 diagnostics. Law 10.6 sets its depth (Section 10.7).
+\item A P\&ID drawn on a screen is a design document, not an operating display.
+\end{itemize}
+\prop{10.1}{Why grey is safer} The eye finds the one coloured object on a grey screen almost instantly. On a screen where every pump is green and every pipe is blue, a red alarm competes with everything else for attention.
+
+\sect{10.7 Navigation and context}
+\law{10.6}{Size of an asset tree} A navigation tree with b choices per level and L levels reaches b to the power L assets, so reaching one of N assets takes L selections:
+\[ N_{leaf} = b^L \quad\Longleftrightarrow\quad L = \log_b N_{leaf} \]
+To reach any one of 25,000 sites with about 10 choices per level takes log₁₀ 25,000 = 4.4, so 5 levels (region, district, zone, group, site). With 30 choices per level, 3 levels suffice, but each list is too long to scan quickly.
+
+\defn{10.6}{Context awareness} Displays that change automatically to match the asset the operator has selected. Select Pump Station 12 and every context-aware pane shows Station 12's graphic, trends and alarms.
+
+\prop{10.2}{Displays saved by context} With n assets of one type and d kinds of display for each, static graphics need n × d displays; context-aware graphics need d. 500 pump stations with an overview, trend, alarm and maintenance page: 2,000 static displays to build and maintain, or 4 context-aware ones. The same principle as templates (Proposition 1.1).
+
+\inpractice{AVEVA OMI and Geo SCADA} AVEVA System Platform's operator client, OMI, is built around context-aware panes and asset navigation. A Geo SCADA viewer app for OMI was announced in 2026 to show Geo SCADA's telemetry displays inside OMI panes, so one operator screen covers both a treatment plant and its remote network (verify capabilities and versions before relying on it).
+
+\sect{10.8 Remember and ask}
+\say{If the operator has no action, it is not an alarm.}
+\ask{What is our average alarm rate per operator per ten minutes, and what was the peak during the last upset? Most sites cannot answer, and that is the point.}
+\ask{Does the alarm system support state-based suppression natively, or is that custom logic in the PLC?}
+\ask{How are shelved and suppressed alarms reported at shift handover?}
+
+\sect{Exercises}
+\begin{enumerate}
+\item Define an alarm in ISA-18.2 terms. (Definition 10.1)
+\item What two factors set alarm priority during rationalisation? (Consequence severity and time to respond)
+\item Why are grey screens safer than colourful ones? (Proposition 10.1)
+\item 864 alarms in a day for one operator. Find the rate per 10 minutes. (6)
+\item 900 alarms a day across 3 operators. Find alarms per operator per 10 minutes. (2.1)
+\item An asset tree has 8 choices per level and 4 levels. How many assets can it reach? (4,096)
+\item A week has 1,008 ten-minute intervals, 7 of them floods. Find the time in flood. (0.69\%)
+\item A signal has noise σ = 0.5 kPa. Suggest a deadband. (About 3 kPa)
+\end{enumerate}

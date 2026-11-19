@@ -1,0 +1,100 @@
+\chap{Chapter 5. MQTT and Sparkplug B}
+MQTT is a lightweight messaging protocol in which devices never talk to each other directly: they all talk to a central broker. It was created in 1999 by Andy Stanford-Clark and Arlen Nipper to monitor oil pipelines over expensive satellite links, so it was a SCADA protocol from birth. Sparkplug B sits on top of it and adds what SCADA needs. Together they are the basis of most modern edge and IIoT designs.
+
+\sect{5.1 MQTT definitions}
+\defn{5.1}{Broker} The server that receives every message and forwards it to whoever asked for it.
+
+\defn{5.2}{Client} Anything that connects to the broker: an RTU, a gateway, a SCADA server, a historian. A client can publish, subscribe, or both.
+
+\defn{5.3}{Topic} A text label on every message, in levels separated by slashes, such as site12/pump1/pressure. Topics are case sensitive.
+
+\defn{5.4}{Publish and subscribe} A publisher sends a message to a topic. A subscriber registers interest in topics. The broker matches them. Publisher and subscriber never know each other's address.
+
+This is the great difference from polling. In Modbus the master must know every slave and ask each in turn. In MQTT the device speaks when it has something to say, and any number of systems can listen without the device knowing or caring.
+
+\begin{tbl}{P{0.12\textwidth}P{0.27\textwidth}P{0.22\textwidth}L}
+Wildcard & Meaning & Example & Matches\\\midrule
++ & Exactly one level & site12/+/pressure & site12/pump1/pressure, site12/pump2/pressure\\
+\# & All remaining levels; must be last & site12/\# & Everything under site12\\
+\end{tbl}
+
+\sect{5.2 Delivery and session features}
+\begin{tbl}{P{0.1\textwidth}P{0.45\textwidth}L}
+QoS & Guarantee & Packets exchanged\\\midrule
+0 & At most once: sent and forgotten & 1 (PUBLISH)\\
+1 & At least once: repeated until acknowledged; duplicates possible & 2 (PUBLISH, PUBACK)\\
+2 & Exactly once & 4 (PUBLISH, PUBREC, PUBREL, PUBCOMP)\\
+\end{tbl}
+\defn{5.5}{Keep-alive} A time KA agreed at connection. If the client sends nothing for that long it must send a ping. The broker declares the client dead after one and a half keep-alive periods.
+\[ T_{detect} \le 1.5 \times KA \]
+\defn{5.6}{Last Will and Testament} A message the client hands to the broker at connection, to be published on its behalf if it disappears without saying goodbye. This is how the rest of the system learns a device has dropped off.
+
+\defn{5.7}{Retained message} A message the broker keeps and gives to every new subscriber of that topic immediately.
+
+\defn{5.8}{Persistent session} The broker remembers a client's subscriptions and queues its QoS 1 and 2 messages while it is offline.
+
+Port 1883 is unencrypted MQTT; port 8883 is MQTT over TLS (Chapter 15). Plain 1883 should never cross a network you do not fully control.
+
+\law{5.1}{Fan-out} If messages arrive at rate λ and each is wanted by s subscribers, the broker sends λ\_out = sλ. Adding a consumer costs the field devices nothing; it costs the broker.
+
+\sect{5.3 What plain MQTT does not define}
+MQTT carries any bytes on any topic. It does not say what the topic structure should be, how a value is encoded, how to tell a stale value from a live one, or how to discover what points a device has. Two vendors can both be ‘MQTT compliant’ and still not understand each other. Sparkplug B exists to fix exactly this.
+
+\sect{5.4 Sparkplug B}
+Sparkplug B is published by the Eclipse Foundation (version 3.0) and standardised as ISO/IEC 20237. It fixes three things: the topic structure, the payload format, and state management.
+
+\defn{5.9}{Edge node, device, host} An \emph{edge node} is an MQTT client that publishes data: an RTU, a gateway, or a SCADA server acting as a publisher. A \emph{device} is equipment behind an edge node, such as a PLC. A \emph{host application} consumes the data; one may be the \emph{primary host}. A \emph{metric} is Sparkplug's word for a point.
+
+\law{5.2}{Topic structure}
+\[ \texttt{spBv1.0 / group\_id / message\_type / edge\_node\_id / [device\_id]} \]
+for example spBv1.0/WaterNorth/DDATA/PumpStation12/Pump1.
+\begin{tbl}{P{0.15\textwidth}P{0.3\textwidth}L}
+Message & Sent by & Meaning\\\midrule
+NBIRTH & Edge node & Node is online; here is every metric it has\\
+NDEATH & Broker, for the node & Node has gone offline (its Last Will)\\
+DBIRTH & Edge node & Device is online; here is every metric it has\\
+DDEATH & Edge node & Device has gone offline\\
+NDATA, DDATA & Edge node & Changed node or device metrics only\\
+NCMD, DCMD & Host & Command (write) to a node or device\\
+STATE & Host & Host application is online or offline (retained)\\
+\end{tbl}
+\law{5.3}{Birth before data; death by Last Will} A node must publish NBIRTH before any NDATA, and DBIRTH before any DDATA, with the name, type and current value of every metric. It registers NDEATH as its MQTT Last Will, so if it vanishes the broker announces the death for it.
+
+\prop{5.1}{No silent stale data} A host therefore always knows the full point list of every live node, and learns of every failure within the keep-alive timeout. On NDEATH it marks every metric of that node stale. This answers the oldest problem in telemetry: a screen showing a healthy number from a site that died an hour ago. It also means points can be created automatically from the birth messages.
+
+\law{5.4}{Sequence numbers} Every message from a node carries seq, counting 0 to 255 and wrapping. If the host expects e and receives r, the number of missing messages is:
+\[ m = (r - e) \bmod 256 \]
+If m is not zero the host can no longer trust its picture of the node, and sends an NCMD asking for a rebirth. A second counter, bdSeq, ties each death to the right birth, so a late death notice from an old session cannot kill a healthy new one.
+
+\wex{5.1} The host last saw seq 254 and next receives seq 1. Expected e = 255; m = (1 − 255) mod 256 = 2. Two messages were lost; the host requests a rebirth.
+
+\defn{5.10}{Aliases} In the birth message each metric may be given a short number. Data messages then send the number instead of the full name, which can cut message sizes by two-thirds on metered links.
+
+\defn{5.11}{Store and forward} A node configured with a primary host watches that host's STATE. While the host is offline the node buffers data locally, then sends it flagged as historical when the host returns, so the historian fills the gap without the values being mistaken for live ones.
+
+\law{5.5}{Buffer size for an outage} A node producing λ updates per second of b bytes, surviving an outage of T\_out:
+\[ B_{buf} = \lambda \cdot b \cdot T_{out} \]
+50 updates per second at 20 bytes for a 4-hour outage needs 50 × 20 × 14,400 = 14.4 MB.
+
+\sect{5.5 Design rules}
+\begin{enumerate}
+\item Give every edge node a unique combination of group id and edge node id. Duplicates cause endless rebirths.
+\item Decide one primary host id and configure it identically on every node.
+\item Use TLS on port 8883 everywhere. Never expose 1883.
+\item Give each client its own credentials, and restrict each to its own topics with broker access control lists. Decide who may publish NCMD and DCMD.
+\item Size edge buffers with Law 5.5 for the longest outage you must survive.
+\item Set the keep-alive from how fast you need to know about a failure, balanced against data cost.
+\item Treat the broker as critical infrastructure: cluster it, monitor it and back it up (Section 9.4).
+\end{enumerate}
+
+\inpractice{Geo SCADA} Geo SCADA can sit on either side of a Sparkplug conversation. Its Sparkplug B driver (since the 2022 release) acts as a host and builds points automatically from birth messages. Its Sparkplug Publisher (since 2025) acts as an edge node, publishing point and historic data to any Sparkplug host, such as a historian's MQTT connector. Most modern SCADA platforms offer one or both roles.
+
+\sect{Exercises}
+\begin{enumerate}
+\item KA = 30 s. Find the maximum time to detect a dead client. (45 s)
+\item A host expects seq 250 and receives 3. How many messages were lost? (9)
+\item Write the topic for device data from device Meter7 on node Site4 in group Gas. (spBv1.0/Gas/DDATA/Site4/Meter7)
+\item 100 updates per second at 20 bytes; buffer for 24 hours. (172.8 MB)
+\item Name five Sparkplug message types and what each does. (Section 5.4)
+\item What three things does Sparkplug B add to MQTT? (Topic structure, payload format, state management)
+\end{enumerate}

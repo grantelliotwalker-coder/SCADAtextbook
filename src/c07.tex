@@ -1,0 +1,44 @@
+\chap{Chapter 7. IEC 61850 and Substations}
+Many SCADA technicians eventually meet a substation: at a large pump station, a treatment plant's high-voltage intake, or a solar or battery site. Modern substations run on IEC 61850, which replaces copper wiring between protection relays with Ethernet messages. This chapter gives the five-minute version a technician needs.
+
+\sect{7.1 Definitions}
+\defn{7.1}{IED} Intelligent Electronic Device: a protection relay, bay controller, meter or merging unit with a processor and a network port.
+
+\defn{7.2}{Station bus and process bus} The \emph{station bus} joins IEDs to each other and to the substation's SCADA. The \emph{process bus} joins IEDs to the primary equipment through merging units, replacing the copper from current and voltage transformers.
+
+\defn{7.3}{Merging unit} A device in the switchyard that digitises current and voltage and publishes them as Sampled Values.
+
+\sect{7.2 The services}
+\begin{tbl}{P{0.22\textwidth}L}
+Service & Role\\\midrule
+MMS & Client/server traffic between IEDs and the station level over TCP/IP: reading values, reports, controls, files\\
+GOOSE & Generic Object Oriented Substation Event. Layer 2 multicast messages between IEDs, replacing hardwired trip and interlock signals\\
+Sampled Values (SV) & Digitised current and voltage streams from merging units, thousands of samples per second\\
+SCL files & The substation described in XML. ICD: what an IED can do. SCD: the whole configured substation. CID: one configured IED\\
+\end{tbl}
+\prop{7.1}{Why GOOSE skips IP} A protection trip must arrive within a few milliseconds; the fastest class allows 3 ms end to end. GOOSE therefore runs directly on Ethernet (layer 2) with VLAN priority tags, avoiding the delays of the IP stack.
+
+\sect{7.3 How GOOSE stays reliable without acknowledgements}
+GOOSE has no acknowledgement. After a change of state it repeats the message quickly, then backs off to a slow heartbeat.
+
+\law{7.1}{GOOSE retransmission} A common scheme doubles the interval from T\_min until it reaches T\_max:
+\[ T_k = T_{min} \cdot 2^{k}, \qquad k = 0, 1, 2, \ldots \ \text{ until } T_k \ge T_{max} \]
+\wex{7.1} T\_min = 2 ms, T\_max = 1,000 ms. Intervals of 2, 4, 8, 16, 32, 64, 128, 256 and 512 ms follow the event: nine fast repeats within about a second, then a heartbeat every second. A subscriber that misses the first message receives the first repeat 2 ms later. (The standard leaves the exact back-off to the vendor; doubling is typical.)
+
+\defn{7.4}{stNum and sqNum} Each GOOSE message carries a state number, stNum, which increases when the data changes, and a sequence number, sqNum, which counts repeats of the same state. A subscriber treats a higher stNum as new information. The heartbeat also proves the publisher is alive: a subscriber that hears nothing for the time allowed raises a GOOSE failure alarm.
+
+\sect{7.4 Sampled Values bandwidth}
+\wex{7.2} A merging unit sending 80 samples per cycle on a 50 Hz system sends 4,000 frames per second. At roughly 130 bytes per frame that is 8 × 4,000 × 130 ≈ 4.2 Mbit/s for one stream. Ten merging units approach 42 Mbit/s of continuous multicast, which is why the process bus is engineered for bandwidth and kept apart from station traffic.
+
+\sect{7.5 Security}
+GOOSE has no built-in authentication, so anything on that VLAN can publish. A spoofed message with a higher stNum is accepted as the latest state: a well-studied attack. IEC 62351 is the security family for power-system protocols (Chapter 16); in practice, substation networks are protected mainly by segmentation and by controlling who can plug in.
+
+\onsite IEC 61850 faults are usually configuration faults: an IED loaded with a CID file that does not match the SCD, a GOOSE subscription to the wrong publisher, or VLAN and priority settings on a switch that do not match the IEDs. Compare files before blaming hardware.
+
+\sect{Exercises}
+\begin{enumerate}
+\item Why does GOOSE run at layer 2? (Trip budgets of a few milliseconds leave no time for the IP stack)
+\item What is the difference between stNum and sqNum? (State changes against repeats of the same state)
+\item T\_min = 4 ms, T\_max = 2,000 ms, doubling. How many fast repeats before the heartbeat? (9)
+\item Which SCL file describes the whole configured substation? (SCD)
+\end{enumerate}

@@ -1,73 +1,68 @@
-\chap[Part V. The Working Technician]{Chapter 20. Commissioning, Testing and Fault-Finding}
-Everything in this book ends up in two activities: proving that a system works before it is handed over, and finding out why it has stopped working. This chapter gives a method for each.
+\chap{Chapter 20. Patching, Vulnerabilities and the Law}
+Security is now a legal duty for both the people who make SCADA products and the people who run them. This chapter covers how vulnerabilities are ranked and patched without outages, the European law that binds vendors worldwide, and the Australian law that binds operators. It is a technical summary, not legal advice; Australian facts were checked on 19 November 2026.
 
-\sect{20.1 The testing lifecycle}
-\defn{20.1}{FAT} Factory Acceptance Test: the system tested at the integrator's premises, with simulated I/O, before it goes to site.
+\sect{20.1 Ranking vulnerabilities}
+\law{20.1}{CVSS severity bands} Vulnerabilities are scored 0 to 10 under the Common Vulnerability Scoring System: 0.1–3.9 low, 4.0–6.9 medium, 7.0–8.9 high, 9.0–10.0 critical.
 
-\defn{20.2}{SAT} Site Acceptance Test: the installed system tested on site with real field devices, usually witnessed by the owner.
+The score describes the flaw, not your risk. Rank by three questions: is it reachable on our network, is it being exploited, and what could it make the process do?
 
-\defn{20.3}{ITP} Inspection and Test Plan: the document that lists every test, how to do it, what should happen, and records what did happen. Each test is witnessed and signed, and every failure goes on a defects list.
-
-A typical ITP layout:
-\begin{tbl}{P{0.12\textwidth}L}
-Column & Contents\\\midrule
-Test ID & A unique number\\
-Control function & What is being tested: enable/disable, duty/assist start, alarm, interlock\\
-Test procedure & Exactly what the tester does, step by step\\
-Expected result & What must happen, written before the test\\
-Actual result & What did happen, written during the test\\
-Pass or fail & Judged against the expected result, not against what seems reasonable\\
-Witness initial & The witness confirms they saw it\\
-Defect list? & Every fail is logged, fixed and retested\\
+\wex{20.1} Three findings on one site:
+\begin{tbl}{P{0.3\textwidth}P{0.09\textwidth}LP{0.18\textwidth}}
+Finding & CVSS & Reachable? Exploited? & Priority\\\midrule
+Web server flaw on an HMI behind two firewalls, service unused & 9.8 & Not reachable; no known exploitation & Next outage\\
+Remote-access appliance flaw on the internet edge & 7.5 & Reachable; actively exploited & Now\\
+Unauthenticated Modbus writes to a PLC & none & Reachable from the control zone; by design & Compensate (Section 18.3)\\
 \end{tbl}
-The header records the date, the implementer, the witness, the subsystem under test and the environment (simulation, or live on the system).
+The highest score is the lowest priority. Dragos reported that only 2\% of ICS-relevant vulnerabilities in 2025 warranted immediate action.
 
-\sect{20.2 What to test}
+\law{20.2}{Exposure window} A known vulnerability is open from disclosure until patched, W = t\_patched − t\_disclosed. If exploitation attempts succeed at a constant rate h per day, the chance of compromise is P = 1 − e⁻ʰᵂ. With h = 0.002 per day: 5.8\% if patched within 30 days, 30\% at six months, 52\% at a year. The rate is illustrative; the shape is not. The only variable the site controls is W.
+
+\sect{20.2 Patching without an outage}
+Patching used to be avoided for fear that a Windows update would break the SCADA software. Vendors now test operating-system patches against their products and publish the results (Schneider Electric does this for Geo SCADA), which turns patching into a procedure.
+\rul{20.1}{Verify what you install} Check every installer or update against the hash (usually SHA-256) the vendor publishes, before installing it. Two builds are the same product only if every file has the same hash, which is also why a software bill of materials lists each file's version and hash.
+
 \begin{enumerate}
-\item \textbf{Point-to-point (I/O) checks.} Every input and output, from the field device to the SCADA screen: operate the device or simulate the signal (Chapter 2), confirm the right point changes, with the right value, units and state text.
-\item \textbf{Functional tests.} Each control function in each mode: enable and disable, auto and manual, duty and standby, start and stop delays, interlocks.
-\item \textbf{Boundary tests.} Values exactly at a threshold, just inside and just outside. If a start condition is ‘beyond setpoint minus deadband’, a value exactly on the threshold must \emph{not} trigger it.
-\item \textbf{Limit tests.} Each adjustable setpoint above its maximum and below its minimum must be rejected and revert to the last good value; a value in range must be accepted and retained.
-\item \textbf{Alarm tests.} Each alarm raises, shows the right text and priority, clears, and appears in the alarm history (Chapter 10).
-\item \textbf{Failure tests.} Lost communications show stale quality (Rule 3.1); a failed instrument shows bad quality and the logic does the safe thing; equipment that becomes unavailable is handled as designed.
-\item \textbf{Redundancy tests.} Server failover and switch-back, network path failure, power supply failure (Section 9.5).
+\item Check the vendor's published compatibility for the patch, and the release notes for your version.
+\item Take a verified backup of database and configuration.
+\item Apply to a test or development system; run through key displays and drivers.
+\item Patch the standby server; confirm it resynchronises.
+\item Switch over, so the patched server becomes main.
+\item Patch the former main; confirm it rejoins as standby.
+\item Patch client workstations in groups, never all at once.
+\item Record what was installed, where and when, against the work order.
 \end{enumerate}
-\rul{20.1}{Ask the design question when a test reveals one} Tests often expose behaviour nobody specified: should a lost ‘available’ signal stop a running assist pump immediately, or only stop it starting again? Do not decide it yourself on the day. Record it and ask the process engineer.
+One healthy server is in service throughout (Law 9.6). Measure \emph{patch compliance}, the share of systems in scope at the target level, monthly: what is not measured drifts.
 
-\sect{20.3 A method for fault-finding}
-\begin{enumerate}
-\item \textbf{Define the symptom exactly.} Which point, which screen, since when, all the time or sometimes, one site or many.
-\item \textbf{Find what changed.} Most faults follow a change: a patch, a password, a configuration edit, a restart, a new device.
-\item \textbf{Split the chain.} Check halfway along the path from field to screen (Section 1.3). The fault is on one side.
-\item \textbf{Prove each layer with an independent tool.} A loop calibrator for the signal, the RTU's own diagnostics, a packet capture for the protocol, a generic OPC UA or MQTT client for the server, the server's own logs.
-\item \textbf{Change one thing at a time,} and put it back if it made no difference.
-\item \textbf{Record what you found and did,} so the next person, possibly you in a year, does not start again.
-\end{enumerate}
-\law{20.1}{Half-splitting} A chain of N links with one fault is found in at most ⌈log₂ N⌉ checks by testing the middle each time, against up to N − 1 checking link by link.
-\[ k = \lceil \log_2 N \rceil \]
-A 16-link chain from transmitter to client display takes at most 4 checks, against up to 15.
+\sect{20.3 The EU Cyber Resilience Act}
+The Cyber Resilience Act (Regulation (EU) 2024/2847) makes the manufacturer of a product with digital elements legally responsible for its security throughout a declared support period, generally at least five years. Reporting duties apply from 11 September 2026: early warning of an actively exploited vulnerability within 24 hours, fuller notification within 72 hours, and a final report within 14 days of a fix. Full requirements apply from 11 December 2027, with penalties up to €15 million or 2.5\% of worldwide turnover. Manufacturers must ship secure by default, provide security updates, and keep a software bill of materials (SBOM).
 
-\rul{20.2}{Read the log before guessing} Servers, drivers and clients log the exact reason a connection or point failed. A status such as BadSubscriptionIdInvalid or ‘certificate rejected’ is worth more than an hour of trying things.
+A global vendor does not keep a weaker product for the rest of the world, so Australian sites receive the same hardening and patch cadence. The consequence for operators: once a fix is published, the remaining risk sits with whoever has not installed it.
 
-\sect{20.4 Worked case: a bridge that would not deliver data}
-\wex{20.1} An old system's data is to reach a new SCADA through an OPC DA-to-UA bridge (Definition 6.2). The faults met, in order, and how each layer was proved:
-\begin{enumerate}
-\item The bridge service would not start: the account lacked the ‘Log on as a service’ right. Granted; the service started (Section 6.1).
-\item The bridge could not read the DA server: DCOM permissions. Corrected; the bridge's log showed its address space built.
-\item The SCADA could browse and select a point, but the point showed a configuration error. A generic OPC UA test client read the same point with good quality: the bridge was proven, and the fault was in the SCADA client.
-\item After the bridge was restarted, the SCADA's log showed BadSubscriptionIdInvalid: its old subscription no longer existed (Section 6.3). Disabling and re-enabling the subscription object created a new one.
-\item With signing enabled, the server log showed the client's certificate in the rejected folder; it was trusted. The connection then failed because the session was activating as anonymous: the user identity had been set on the point, not on the server connection object (Section 16.3).
-\end{enumerate}
-Each step was settled by a log line or an independent tool, never by guessing. The service then ran under a personal login, which works until that person's password changes; moving it to a dedicated service account (Rule 6.1) finished the job.
+\sect{20.4 Australian law}
+\defn{20.1}{SOCI Act} The Security of Critical Infrastructure Act 2018 covers eleven sectors, including energy, water and sewerage, transport, communications and health. Responsible entities must register assets, report cyber incidents, and run a risk management programme. In water and sewerage it captures larger utilities; the threshold is commonly cited as 100,000 connections (verify for your utility).
 
-\sect{20.5 Handover}
-A system is not finished until the next person can maintain it: as-built drawings and point lists; configuration exported and committed (Section 13.5); passwords and certificates recorded in the proper vault with their expiry dates; the ITP signed with all defects closed or accepted; and the failover and backup procedures tested, not just written.
+\law{20.3}{Incident reporting clock} The clock starts when the entity becomes \emph{aware}, not when the incident began.
+\begin{tbl}{P{0.45\textwidth}L}
+Impact & Report to ASD's ACSC within\\\midrule
+Significant impact on availability & 12 hours\\
+Relevant impact (availability, integrity, reliability, confidentiality) & 72 hours\\
+Report first made verbally & Written record within 84 hours\\
+\end{tbl}
+\wex{20.2} At 21:40 on a Friday the on-call technician realises ransomware has stopped the SCADA servers and operators are running the plant by hand. A significant-impact report is due by 09:40 Saturday. Twelve hours overnight leaves no time to work out who is allowed to make the call: the roster, decision maker and reporting steps belong in the incident response plan before the night they are needed. The technician's part is to recognise it quickly and escalate.
+
+\defn{20.2}{CIRMP} The Critical Infrastructure Risk Management Program: cyber and information security, personnel, supply chain, and physical and natural hazards, with a board-approved annual report. For cyber, the entity adopts a recognised framework at a stated level: ISO/IEC 27001, the Essential Eight, the NIST Cybersecurity Framework, C2M2, or the Australian Energy Sector Cyber Security Framework (AESCSF).
+
+\textbf{Cyber Security Act 2024.} Since 30 May 2025, a business with turnover above \$3 million, or the responsible entity for a critical infrastructure asset, must report a ransomware or cyber-extortion payment within 72 hours.
+
+\textbf{ASD's Principles of OT Cyber Security (October 2024).} Safety is paramount; knowledge of the business is crucial; OT data is extremely valuable and needs protecting; segment and segregate OT from all other networks; the supply chain must be secure; people are essential. The third is the one people miss: diagrams, project files and alarm data are what an attacker needs for Stage 2.
+
+\textbf{The Essential Eight in OT.} Application control, restricting administrative privileges, multi-factor authentication for remote access and regular backups (including configuration exports and PLC projects) translate well to SCADA servers. Patching operating systems and applications works for servers in planned windows, rarely for controllers. Office macro settings are mostly irrelevant inside the control zone.
 
 \sect{Exercises}
 \begin{enumerate}
-\item What is the difference between FAT and SAT? (Factory with simulation, against site with real devices)
-\item A start condition is ‘DO below setpoint minus deadband’. What should a reading exactly on that threshold do? (Not trigger a start)
-\item How many checks at most to find one fault in a 32-link chain by half-splitting? (5)
-\item A generic OPC UA client reads good values but the SCADA shows a configuration error. Where is the fault? (In the SCADA's point or connection configuration)
-\item Name four things a system needs before handover. (Section 20.5)
+\item h = 0.001 per day and W = 90 days. Find the probability of compromise. (8.6\%)
+\item 46 of 52 servers are at the target patch level. Find compliance. (88.5\%)
+\item An entity becomes aware of a critical incident at 16:30 on a Sunday. When is the report due? (04:30 Monday)
+\item List the six ASD principles of OT cyber security. (Section 20.4)
+\item Why should a redundant server pair be patched standby first? (One healthy server stays in service throughout)
 \end{enumerate}

@@ -22,6 +22,9 @@ Law & Formula\\\midrule
 5.1 Fan-out & λ\_out = s × λ\\
 5.4 Lost Sparkplug messages & m = (received − expected) mod 256\\
 5.5 Outage buffer & B = λ × b × T\_out\\
+5.6 Topic matching & + one level; \# the rest, including the parent; wildcards never match \$ topics first\\
+5.7 Queue memory & M\_max = N\_conn × Q × B\_packet\\
+5.8 Client traffic & m = Σ 3600 / T\_i per hour; R = Σ (B\_i + δ) / T\_i\\
 6.1 OPC UA queue size & q ≥ ceiling(T\_p / T\_s)\\
 6.3 Edge aggregation & ratio = T\_a / T\_s\\
 7.1 GOOSE repeats & T\_k = T\_min × 2\^{}k until T\_k ≥ T\_max\\
@@ -59,22 +62,33 @@ Law & Formula\\\midrule
 14.3 Precision & s π / (s π + f (1 − π))\\
 \end{tbl}
 
-\sect{Security and practice (Chapters 15 to 20)}
+\sect{Security and practice (Chapters 15 to 21)}
 \begin{tbl}{P{0.4\textwidth}L}
 Law & Formula\\\midrule
 15.1 Brute force & T = 2\^{}n / r\\
 15.2 Entropy & H = L × log2(S)\\
 15.4 Renewals & N / V per year\\
+15.5 Weakest component & s\_conn = min(s\_kx, s\_sig, s\_cipher, s\_hash)\\
+15.6 CRL margin & life left ≥ R − c/24 days\\
 16.1 Trust entries & E\_self = 2cs; E\_CA = c + s\\
 16.2 Key count & K\_pairs = n(n − 1) / 2; K\_star = n\\
-17.1 Possible conduits & C\_max = z(z − 1) / 2\\
-17.2 Security gap & g\_i = max(0, SL-T\_i − SL-A\_i)\\
-17.3 Dependency & A\_action = A\_local × A\_remote\\
-18.1 Detection & P = 1 − (1 − d)\^{}T\\
-18.2 Barriers & P = p\_1 × p\_2 × …\\
-19.2 Exposure & P = 1 − e\^{}(−hW)\\
-19.3 SOCI reporting & 12 h significant; 72 h relevant; 84 h written record after verbal\\
-20.1 Half-splitting & k = ceiling(log2 N)\\
+17.1 Exposure & S = Σ sign-in methods on network listeners\\
+17.2 Online budget & G\_day = k × 86,400 / T\_L\\
+17.3 Offline time & T = D × W / r\\
+17.4 TOTP & C = floor(t / 30); guess p = 3 / 10\^{}6\\
+17.5 Default deny & no matching rule → deny; else highest priority decides\\
+17.7 Log capacity & N = (B\_max − B\_reserve) / record size\\
+17.8 Fail closed & serve = c\_1 ∧ … ∧ c\_k (cannot tell = false)\\
+18.1 Possible conduits & C\_max = z(z − 1) / 2\\
+18.2 Security gap & g\_i = max(0, SL-T\_i − SL-A\_i)\\
+18.3 Attacker chooses & SL\_eff = min over FRs in the way of SL-C\\
+18.4 Dependency & A\_action = A\_local × A\_remote\\
+19.1 Detection & P = 1 − (1 − d)\^{}T\\
+19.2 Barriers & P = p\_1 × p\_2 × …\\
+20.2 Exposure & P = 1 − e\^{}(−hW)\\
+20.3 SOCI reporting & 12 h significant; 72 h relevant; 84 h written record after verbal\\
+21.1 Half-splitting & k = ceiling(log2 N)\\
+21.2 Mutation score & detected / introduced\\
 \end{tbl}
 
 \sect{Numbers worth memorising}
@@ -85,7 +99,7 @@ Seconds in a day; a year & 86,400; 31,536,000\\
 2\^{}8, 2\^{}16, 2\^{}32 & 256; 65,536; 4,294,967,296\\
 Copper resistivity & 0.0175 Ω·mm²/m\\
 1 − 1/e & 63.2\%\\
-Ports & Modbus 502; secure Modbus 802; IEC 104 2404; OPC UA 4840; MQTT 1883 plain, 8883 TLS\\
+Ports & Modbus 502; secure Modbus 802; IEC 104 2404; OPC UA 4840; MQTT 1883 plain, 8883 TLS (8884 often certificate-only)\\
 Sparkplug sequence range & 0 to 255\\
 Alarm benchmarks & about 1 per 10 minutes comfortable; flood above 10 in 10 minutes\\
 z for 95\% one-sided & 1.645\\
@@ -104,12 +118,12 @@ Week & Chapters & Practical task\\\midrule
 6 & 11, 12 & Pull history for one flow and total it by hand. Step-test a loop (with permission) and calculate K, θ and τ\\
 7 & 13, 14 & Write the functions for Laws 2.3, 2.6 and 5.4 in Python. Put a configuration export under Git, change it, and read the diff\\
 8 & 15, 16 & Inspect a real certificate: issuer, expiry, key size. Check which protocols on your system run with no security, and why\\
-9 & 17, 18, 19 & Draw your zones and conduits from risk. List every remote-access path. Work Worked Example 19.2 for your own site\\
-10 & 20 & Write an ITP for one subsystem. Then fault-find something real using the method of Section 20.3, and write it up\\
+9 & 17, 18, 19, 20 & Draw your zones and conduits from risk. List every remote-access path. Work Worked Example 20.2 for your own site\\
+10 & 21 & Write an ITP for one subsystem. Then fault-find something real using the method of Section 21.3, and write it up\\
 \end{tbl}
 
 \sect{B.2 Self-test}
-Answer aloud, then check. If you can answer all thirty, you know more than most people in the room.
+Answer aloud, then check. If you can answer all thirty-five, you know more than most people in the room.
 \begin{enumerate}
 \item What three things make up a point? Value, timestamp, quality.
 \item Why does a 4–20 mA loop start at 4 mA? So a broken wire (0 mA) differs from a true zero.
@@ -140,6 +154,11 @@ Answer aloud, then check. If you can answer all thirty, you know more than most 
 \item What is the difference between SL-C and SL-A? What a product can deliver against what was achieved once installed.
 \item Name two incidents where no vulnerability was exploited. Any two of Maroochy, Unitronics, FrostyGoop, Colonial.
 \item How long does an Australian critical infrastructure entity have to report a critical cyber incident? 12 hours from becoming aware.
+\item Why is ‘not installed’ stronger than ‘disabled’? A disabled feature can be switched on by mistake.
+\item Why does a P-384 certificate not make a session 192-bit? A connection is only as strong as its weakest part, usually the 128-bit key exchange.
+\item What happens to a site when its CRL expires? No certificate can be proved unrevoked, so certificate clients are refused.
+\item In a rule set, what does a deny at higher priority do to an allow? The deny wins wherever both match.
+\item Who can defeat a local audit log, and what is the defence? A local administrator; a copy forwarded to another machine.
 \item What is the first step in fault-finding? Define the symptom exactly; then find what changed.
 \end{enumerate}
 
@@ -148,17 +167,22 @@ Answer aloud, then check. If you can answer all thirty, you know more than most 
 \begin{tbl}{P{0.2\textwidth}L}
 Term & Meaning\\\midrule
 AESCSF & Australian Energy Sector Cyber Security Framework\\
+AEAD & Authenticated encryption, such as AES-GCM\\
 APC & Advanced process control\\
 APL & Advanced Physical Layer: two-wire Ethernet for process instruments\\
 bdSeq & Sparkplug birth-death sequence number\\
 Broker & MQTT server that routes messages\\
 CA & Certificate authority\\
 CIRMP & Critical Infrastructure Risk Management Program\\
+CR, RE & IEC 62443-4-2 component requirement and requirement enhancement\\
 CRA & EU Cyber Resilience Act\\
+CRL & Certificate revocation list\\
+CSRF & Cross-site request forgery\\
 CVSS & Common Vulnerability Scoring System\\
 DCOM & Distributed COM: Microsoft's remote object system, used by OPC Classic\\
 DMZ & Demilitarised zone between control and business networks\\
 DNP3 & Distributed Network Protocol, IEEE 1815\\
+DPAPI & Windows Data Protection API\\
 DTLS & TLS for UDP\\
 FAT, SAT & Factory and Site Acceptance Tests\\
 FR & Foundational requirement (IEC 62443)\\
@@ -171,6 +195,7 @@ IED & Intelligent electronic device\\
 ITP & Inspection and Test Plan\\
 JSON & JavaScript Object Notation\\
 MAC & Message authentication code\\
+MFA & Multi-factor authentication\\
 Mimic & A SCADA graphic (Geo SCADA's word)\\
 MMS & Manufacturing Message Specification\\
 MPC & Model predictive control\\
@@ -185,11 +210,13 @@ RBE & Report by exception\\
 RTU & Remote terminal unit\\
 SBOM & Software bill of materials\\
 SCL & Substation Configuration Language\\
+SIEM & Security information and event management: a central log collector\\
 SIS & Safety instrumented system\\
 SL-T, SL-C, SL-A & Security level target, capability, achieved\\
 SOCI & Security of Critical Infrastructure Act 2018\\
 SOE & Sequence of events\\
 TLS & Transport Layer Security\\
+TOTP & Time-based one-time password (RFC 6238)\\
 TSN & Time-Sensitive Networking, IEEE 802.1\\
 UNS & Unified Namespace\\
 VLAN & Virtual LAN\\
@@ -208,6 +235,7 @@ Mathematics and protocol rules are from the standards named in each chapter. Pro
 \item Dragos 2026 OT Cybersecurity Report and Year in Review (press release and summaries)
 \item FrostyGoop: Dark Reading, The Register, TechCrunch; the SCADASEC response as summarised by Trout Software
 \item Maroochy Water Breach, MITRE ATT\&CK for ICS (C0020); The Register, 31 October 2001
+\item Principia SecureLink (G. Walker, GW Automation, 19 November 2026); IEC 62443-4-2:2019; OASIS MQTT 3.1.1 and 5.0; RFC 8446 (TLS 1.3), RFC 5280 (X.509 and CRLs), RFC 6238 (TOTP), RFC 2104 (HMAC), RFC 7914 (scrypt); NIST SP 800-57 Part 1
 \item Better alarm handling, UK Health and Safety Executive (Milford Haven, 1994); alarm deadband guidance, exida
 \end{itemize}
 
@@ -215,7 +243,7 @@ Mathematics and protocol rules are from the standards named in each chapter. Pro
 \begin{itemize}
 \item[!] Product features marked \emph{verify}: Geo SCADA's JSON configuration export, its viewer for AVEVA OMI, and the 1.5 million point figure quoted at the conference
 \item[!] The SOCI asset threshold and CIRMP framework level that apply to your own utility
-\item[!] Incident figures in Section 18.1 against each primary report (FrostyGoop's impact is disputed)
+\item[!] Incident figures in Section 19.1 against each primary report (FrostyGoop's impact is disputed)
 \item[!] Byte counts and timings in Worked Examples 4.1 and 16.1 against your own equipment
 \item[!] Historic record size in bytes, to firm up the storage estimate in Worked Example 9.1
 \end{itemize}
@@ -257,8 +285,8 @@ Security & Which requirements does the product meet natively, and which need com
 \item If the operator has no action, it is not an alarm. (Definition 10.1)
 \item The data model comes before the broker. (Rule 11.2)
 \item Fix the plant before the tuning. (Rule 12.1)
-\item Security level is a vector, and SL-C is not SL-A. (Chapter 17)
-\item Engineer out the worst consequence physically. (Section 17.4)
-\item The clock starts when you become aware. (Law 19.3)
-\item Read the log before guessing. (Rule 20.2)
+\item Security level is a vector, and SL-C is not SL-A. (Chapter 18)
+\item Engineer out the worst consequence physically. (Section 18.4)
+\item The clock starts when you become aware. (Law 20.3)
+\item Read the log before guessing. (Rule 21.2)
 \end{enumerate}

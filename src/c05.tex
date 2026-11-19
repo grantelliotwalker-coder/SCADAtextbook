@@ -89,6 +89,27 @@ If m is not zero the host can no longer trust its picture of the node, and sends
 
 \inpractice{Geo SCADA} Geo SCADA can sit on either side of a Sparkplug conversation. Its Sparkplug B driver (since the 2022 release) acts as a host and builds points automatically from birth messages. Its Sparkplug Publisher (since 2025) acts as an edge node, publishing point and historic data to any Sparkplug host, such as a historian's MQTT connector. Most modern SCADA platforms offer one or both roles.
 
+\sect{5.6 Topic matching and broker limits}
+\law{5.6}{Topic matching} Split a filter and a topic into levels. Compare level by level: \# matches everything that follows, including nothing (so plant/\# matches plant itself); + matches exactly one level; any other level must match exactly. Without a \#, the filter and topic must have the same number of levels. A filter whose first level is a wildcard never matches a topic beginning with \$, so \# does not deliver the broker's own \$SYS statistics.
+\begin{tbl}{P{0.22\textwidth}P{0.32\textwidth}P{0.1\textwidth}L}
+Filter & Topic & Match & Reason\\\midrule
+plant/+/temp & plant/pump01/temp & yes & + takes pump01\\
+plant/+/temp & plant/pump01/motor/temp & no & + is one level only\\
+plant/\# & plant & yes & \# includes the parent\\
+plant/\# & plant/a/b/c & yes & any depth\\
+\# & \$SYS/broker/uptime & no & system topic rule\\
+\end{tbl}
+\law{5.7}{Worst-case queue memory} A broker that allows N\_conn connections, each queuing up to Q messages of up to B\_packet bytes, can be asked to hold:
+\[ M_{max} = N_{conn} \times Q \times B_{packet} \]
+At 1,000 connections, 1,000 queued messages and 512 KiB packets that is about 524 GB, far beyond any broker PC. Real traffic is nowhere near it, but an attacker with valid credentials chooses the worst case. Set the maximum packet size no larger than the largest real message, bound queues in bytes as well as messages where the broker allows it, and expire the sessions of clients that never come back (for example after 14 days).
+
+\sect{5.7 A well-behaved client}
+\rul{5.1}{Publish a trustworthy status} On connecting, a client publishes a retained \emph{online} message on its status topic, and registers a retained \emph{offline} message as its Last Will. Any subscriber, arriving at any time, then sees the true state of every client, including one that lost power, within 1.5 keep-alive periods.
+
+\law{5.8}{Client traffic} A client publishing item i every T\_i seconds with payload B\_i and per-message overhead δ (MQTT header, topic and TLS record, about 60 bytes) sends:
+\[ m = \sum_i \frac{3600}{T_i}\ \text{messages per hour}, \qquad R = \sum_i \frac{B_i + \delta}{T_i}\ \text{bytes per second} \]
+\inpractice{SecureLink Publisher} GW Automation's SecureLink Publisher reports a Windows PC's health (CPU, memory, disks, services, event log errors, Defender and firewall state) to the broker, so the computers that run the plant can be watched like the plant. Its defaults send about 694 messages and 300 kB an hour per PC; CPU and memory every 15 s are 69\% of the messages, so moving them to 60 s halves the total. It is publish-only, with no subscribe rights and no message handler, so even a compromised publisher cannot read plant data or receive commands (Rule 17.2).
+
 \sect{Exercises}
 \begin{enumerate}
 \item KA = 30 s. Find the maximum time to detect a dead client. (45 s)
@@ -96,5 +117,7 @@ If m is not zero the host can no longer trust its picture of the node, and sends
 \item Write the topic for device data from device Meter7 on node Site4 in group Gas. (spBv1.0/Gas/DDATA/Site4/Meter7)
 \item 100 updates per second at 20 bytes; buffer for 24 hours. (172.8 MB)
 \item Name five Sparkplug message types and what each does. (Section 5.4)
+\item Does a/+/\# match a/b? (Yes: + takes b, and \# matches zero further levels)
+\item Find the worst-case queue memory for 200 connections, queue 100, packets of 64 KiB. (About 1.3 GB)
 \item What three things does Sparkplug B add to MQTT? (Topic structure, payload format, state management)
 \end{enumerate}

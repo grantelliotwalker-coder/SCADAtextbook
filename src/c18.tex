@@ -1,53 +1,87 @@
-\chap{Chapter 18. Real Attacks and the Kill Chain}
-Industrial attacks are rare, but they are real, and several have targeted exactly the kind of systems a SCADA technician maintains. This chapter gives what actually happened in the incidents people quote, the model that explains how such attacks unfold, and what a technician can do about them.
+\chap{Chapter 18. IEC 62443 and Secure Architecture}
+IEC 62443 is the industrial security standard everyone cites and few have read. This chapter gives its structure, what a security level really is, how plants are divided into zones and conduits, and the architecture patterns that follow, including what replaces the Purdue diagram.
 
-\sect{18.1 The cases}
-\begin{tbl}{P{0.21\textwidth}LP{0.27\textwidth}}
-Incident & What happened & Lesson\\\midrule
-Maroochy Shire, Queensland, 2000 & A former contractor used a radio and stolen control software to command sewage pump stations, with at least 46 attempts in March and April. About 800,000 litres of raw sewage were released & An insider with knowledge, no malware. Unauthenticated radio telemetry\\
-Stuxnet, 2010 & Targeted Siemens S7-315 and S7-417 controllers driving centrifuges, and replayed normal readings to operators & The HMI can lie\\
-Ukraine, 2015 & Attackers used the operators' own HMIs to open breakers at three distribution companies, then wiped workstations and bricked serial-to-Ethernet converters. About 225,000 customers lost power & Remote access and native tools are enough\\
-Industroyer, 2016 & First malware to speak grid protocols directly: IEC 60870-5-101 and -104, IEC 61850 and OPC DA & Protocol knowledge is now packaged\\
-TRITON, 2017 & Targeted a Triconex safety instrumented system; found because a bug in it tripped the plant & The safety system is a target\\
-Colonial Pipeline, 2021 & Ransomware hit IT only; the company shut the pipeline because it could not bill or be sure of containment & OT outage without OT compromise\\
-PIPEDREAM, 2022 & A modular toolkit for Schneider and Omron PLCs, CODESYS and OPC UA, found before use & Tools target whole vendor families\\
-Unitronics PLCs, 2023 & Internet-exposed PLCs at water utilities defaced using a default password & Low skill, real impact\\
-FrostyGoop, 2024 & Modbus TCP commands to heating controllers in Lviv. Dragos reported over 600 apartment buildings without heat for almost 48 hours; Ukrainian accounts cited by critics describe a smaller, shorter outage & Modbus has no authentication; no exploit was needed\\
-Volt Typhoon (VOLTZITE) & Living off the land with built-in tools, stealing GIS data, network diagrams and configuration & The engineering data is the target\\
+\sect{18.1 Who each part is for}
+\begin{tbl}{P{0.12\textwidth}P{0.3\textwidth}L}
+Part & Written for & Subject\\\midrule
+2-1 & Asset owner & The owner's security programme\\
+2-4 & Service provider, integrator & Requirements on those who build and maintain systems\\
+3-2 & Owner and integrator & Risk assessment; zones and conduits\\
+3-3 & System integrator & System-level security requirements\\
+4-1 & Product supplier & The secure development lifecycle\\
+4-2 & Product supplier & Technical requirements for components\\
 \end{tbl}
+\prop{18.1}{Shared responsibility} Supplier, integrator and owner are in series. A certified component does not make a secure system, and a secure design does not survive a careless integrator, or a technician who leaves a default password.
 
-\sect{18.2 The ICS Cyber Kill Chain}
-\defn{18.1}{ICS Cyber Kill Chain} The model of Assante and Lee, in two stages. \emph{Stage 1} looks like an IT intrusion: reconnaissance, delivery, exploitation, installation, command and control, and then learning the process and stealing engineering data. \emph{Stage 2} develops, tests and delivers an attack built for that particular plant.
+\sect{18.2 Zones and conduits}
+\defn{18.1}{Zone} A group of assets with the same security requirements.
 
-\prop{18.1}{The defender's window} A meaningful physical attack needs process knowledge, which takes time to gather. That dwell time is the defender's chance, but only if someone is watching the OT network.
+\defn{18.2}{Conduit} The controlled communication path between two zones.
 
-\law{18.1}{Detection within the dwell time} If monitoring has a probability d of spotting an intruder on any one day, the chance of detection within T days is:
-\[ P_{detect} = 1 - (1-d)^T \]
-Over a 90-day Stage 2 preparation, d = 0.02 gives 84\%; d = 0.002 gives 16.5\%. The figures are illustrations; visibility multiplies the value of every day the attacker needs.
+Zones are drawn from a risk assessment, not copied from the VLAN list: a VLAN is a network convenience, a zone is a statement about consequence. Safety systems normally get their own zone; so does wireless, and anything a vendor can reach remotely.
 
-\law{18.2}{Barriers in series} An attacker who must pass independent barriers succeeding with probabilities p\_i reaches the process with probability ∏ p\_i. Remote access 0.3, IT-to-OT firewall 0.2, engineering workstation 0.5, unauthenticated PLC write 0.9: 0.027. Multi-factor authentication on remote access (0.05) cuts it to 0.0045. Real barriers are not fully independent: stolen administrator credentials may pass several at once.
+\law{18.1}{Possible conduits} Among z zones there are at most z(z − 1) / 2 pairs. Eight zones could be joined by 28 conduits; a good design uses only the few the process needs, each documented, filtered and monitored.
 
-The Dragos 2026 Year in Review (covering 2025) reported adversaries moving from pre-positioning to mapping control loops; VOLTZITE reached Stage 2 after extracting configuration files and alarm data from engineering workstations, and ransomware groups affecting industrial organisations rose 49\% to 119.
+\sect{18.3 Security levels}
+\begin{tbl}{P{0.12\textwidth}L}
+Level & Protection against\\\midrule
+SL 1 & Casual or accidental violation\\
+SL 2 & Intentional attack with simple means and generic skills\\
+SL 3 & Sophisticated means, moderate resources, industrial-control skills\\
+SL 4 & Sophisticated means with extended resources: a state-level actor\\
+\end{tbl}
+\defn{18.3}{SL-T, SL-C and SL-A} The \emph{target} level a zone needs, from the risk assessment; the \emph{capability} a product can deliver when properly configured; and the level \emph{achieved} once installed. A product with SL-C 3 installed with default passwords has an SL-A nowhere near 3.
 
-\sect{18.3 Patterns, and what the technician does about them}
-\begin{itemize}
-\item Most incidents start in IT or through remote access. Know every remote-access path into your system, and remove the ones nobody uses.
-\item Attackers use protocols exactly as designed. Detection needs to know normal process behaviour; you are the person who knows it.
-\item Engineering workstations, project files, alarm data and network diagrams are the crown jewels. Do not leave them on laptops, shared drives or email.
-\item Several famous incidents exploited no vulnerability: an insider (Maroochy), a default password (Unitronics), valid Modbus (FrostyGoop), an IT dependency (Colonial). Change defaults, remove leavers' access promptly, and close exposed ports.
-\item Report anything odd: an unexplained setpoint change, a login at 3 a.m., a PLC in program mode. Most incidents are found by someone who noticed.
-\end{itemize}
+There are seven foundational requirements (FRs): FR1 identification and authentication, FR2 use control, FR3 system integrity, FR4 data confidentiality, FR5 restricted data flow, FR6 timely response to events, FR7 resource availability.
 
-\sect{18.4 Remember and ask}
-\say{FrostyGoop did not exploit anything. It sent valid Modbus.}
-\ask{Could our monitoring tell the difference between an engineer and an attacker writing the same setpoint?}
-\ask{How long could we run the plant with the IT network completely gone?}
+\law{18.2}{Security level is a vector} A security level is one number per FR. For each, the gap is g\_i = max(0, SL-T\_i − SL-A\_i), and a zone meets its target only when every gap is zero.
+
+\wex{18.1} A treatment-plant control zone:
+\begin{tbl}{P{0.18\textwidth}*{7}{>{\centering\arraybackslash}X}}
+ & FR1 & FR2 & FR3 & FR4 & FR5 & FR6 & FR7\\\midrule
+SL-T & 2 & 2 & 3 & 1 & 3 & 2 & 3\\
+SL-A & 2 & 1 & 3 & 1 & 2 & 2 & 3\\
+Gap & 0 & 1 & 0 & 0 & 1 & 0 & 0\\
+\end{tbl}
+Two gaps: operators share one login (FR2), and the conduit to the business network allows more than the historian traffic it exists for (FR5). Confidentiality, already at target, gets no money: availability and integrity normally outrank secrecy in a plant.
+
+\defn{18.4}{Compensating countermeasure} When a legacy device cannot meet a requirement, the zone meets it instead: a firewall permitting only named hosts and functions, monitoring, physical access control, or a jump host with individual logins. This is how brownfield plants comply without replacing every controller.
+
+\defn{18.5}{Component requirement and enhancement} Part 4-2 states each technical requirement as a numbered component requirement (CR) within its FR, such as CR 1.7, strength of password-based authentication. A requirement enhancement (RE) is a stronger version needed only at higher levels: CR 1.1 RE 2 adds multi-factor sign-in on every interface.
+
+\law{18.3}{The attacker chooses} An attacker does not attack the average. Against a given goal, the effective protection is the lowest capability among the FRs that stand in the way:
+\[ SL_{eff} = \min_j\ SL\text{-}C(FR_j) \]
+\wex{18.2} A broker has excellent TLS (FR4 at 3) and a strong audit log (FR6 at 3), but MQTT passwords with no lockout and no certificates (FR1 at 2). An attacker who wants to publish a false setpoint attacks FR1, not the cipher: effective level min(3, 3, 2) = 2.
+
+\defn{18.6}{Designed to, and certified} A maker can design a product to a security level. It is \emph{certified} only after an accredited body has assessed it. Read datasheets carefully: ‘designed to IEC 62443-4-2 SL 3’ is a claim, ‘certified’ is evidence. Either way, ask for the installation's own evidence: a report generated from the live configuration, not from the documentation, showing each check, its result and the requirement it relates to.
+
+\sect{18.4 Architecture after Purdue}
+The Purdue levels (Section 1.4) began as a functional model and became a security model by accident. Cloud historians, cellular RTUs and sensors that talk straight to a vendor's platform have broken the neat diagram. A defensible position: Purdue as a rigid network diagram is dying; Purdue as a way of reasoning about trust boundaries is fine; zones and conduits are what you actually build.
+
+\textbf{Zero trust, adapted for OT.} You cannot put an agent on a 15-year-old PLC, so trust is enforced \emph{around} devices: micro-segmentation at the cell level; remote access brokered through the DMZ with multi-factor authentication and session recording; protocol-aware firewalls that permit Modbus reads but block writes.
+
+\law{18.4}{A dependency is a series element} If a local action needs a remote service, A\_action = A\_local × A\_remote. A local HMI at 0.9999 whose logins must reach a central identity server at 0.995 is usable only 0.9949 of the time: about 45 hours a year locked out instead of under one. Never let safety or basic operation depend on a remote authentication server; provide cached credentials or a break-glass account.
+
+\defn{18.7}{DMZ rule} No traffic passes straight through the industrial DMZ. Sessions from either side terminate there, with different credentials on each side.
+
+\defn{18.8}{Data diode} Hardware that physically permits traffic one way only, used to get data out of high-consequence zones. It cannot be misconfigured into letting traffic back in. Because no acknowledgement can return, diodes repeat each message: with loss p per copy and r copies, P\_lost = pʳ.
+
+\textbf{The SANS Five ICS Critical Controls:} an ICS-specific incident response plan; a defensible architecture; ICS network visibility and monitoring; secure remote access; and risk-based vulnerability management.
+
+\textbf{Cyber-Informed Engineering.} Assume the digital layer will be compromised and engineer out the worst outcome physically. A relief valve, a float switch hardwired to a pump stop, or a hardwired overspeed trip cannot be hacked.
+
+\sect{18.5 Remember and ask}
+\say{Security level is a vector, not a number; and SL-C is not SL-A.}
+\say{What is the worst thing this process can physically do, and is there a non-digital barrier in front of it?}
+\ask{What is the SL-T for this zone, and who signed off the risk assessment behind it?}
+\ask{How does the remote access system behave when its cloud service is unreachable?}
 
 \sect{Exercises}
 \begin{enumerate}
-\item Which attack targeted a safety system, and how was it found? (TRITON; a bug tripped the plant)
-\item What separates Stage 1 from Stage 2? (Gaining access and learning, against building a plant-specific attack)
-\item Name two incidents where no vulnerability was exploited. (Any two of Maroochy, Unitronics, FrostyGoop, Colonial)
-\item d = 0.01 per day, dwell time 60 days. Find the detection probability. (45.3\%)
-\item Barriers 0.4, 0.25 and 0.8. Find the chance of reaching the process. (0.08)
+\item Explain SL-T, SL-C and SL-A in one sentence each. (Definition 18.3)
+\item Six zones. Find the maximum number of conduits. (15)
+\item Target (3, 3, 3, 1, 2, 3, 3); achieved (2, 3, 3, 1, 2, 1, 3). Find the gap vector. ((1, 0, 0, 0, 0, 2, 0))
+\item Name the five SANS ICS critical controls. (Section 18.4)
+\item A component's SL-C vector is (3, 3, 3, 2, 3, 3, 3). What level protects process values from being read off the wire? (2: confidentiality is FR4)
+\item What does a data diode guarantee that a firewall does not? (Physically one-way traffic, whatever the configuration)
 \end{enumerate}

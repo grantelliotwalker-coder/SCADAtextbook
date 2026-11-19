@@ -12,7 +12,7 @@ aux = open('book.aux').read()
 entries = re.findall(r"contentsline \{section\}\{([^}]*)\}\{(\d+)\}", aux)
 parts = {"Chapter 1.": "Part I. Foundations", "Chapter 4.": "Part II. Communications",
          "Chapter 9.": "Part III. The SCADA System", "Chapter 15.": "Part IV. Security",
-         "Chapter 20.": "Part V. The Working Technician", "Appendix A.": "Appendices"}
+         "Chapter 21.": "Part V. The Working Technician", "Appendix A.": "Appendices"}
 lines = []
 for title, page in entries:
     for key, part in parts.items():

@@ -1,78 +1,120 @@
-\chap{Chapter 17. IEC 62443 and Secure Architecture}
-IEC 62443 is the industrial security standard everyone cites and few have read. This chapter gives its structure, what a security level really is, how plants are divided into zones and conduits, and the architecture patterns that follow, including what replaces the Purdue diagram.
+\chap{Chapter 17. Accounts, Access and Audit}
+Encryption protects data on the wire. It does nothing about who is allowed in, what they may touch once inside, and whether anyone can tell afterwards what they did. This chapter covers those three questions for any SCADA component: a broker, a server, a gateway or a web console. Its examples come from a hardened MQTT broker, because a broker in the middle of a plant network is the most valuable machine on it, to the plant and to an attacker.
 
-\sect{17.1 Who each part is for}
-\begin{tbl}{P{0.12\textwidth}P{0.3\textwidth}L}
-Part & Written for & Subject\\\midrule
-2-1 & Asset owner & The owner's security programme\\
-2-4 & Service provider, integrator & Requirements on those who build and maintain systems\\
-3-2 & Owner and integrator & Risk assessment; zones and conduits\\
-3-3 & System integrator & System-level security requirements\\
-4-1 & Product supplier & The secure development lifecycle\\
-4-2 & Product supplier & Technical requirements for components\\
+\inpractice{SecureLink} SecureLink is GW Automation's offline MQTT broker for plant networks, built on Eclipse Mosquitto and designed to IEC 62443-4-2 Security Level 3. Its design choices illustrate most of the principles below.
+
+\sect{17.1 Attack surface and least functionality}
+\defn{17.1}{Attack surface} The set of ways into a system: every listening network port, every sign-in method on it, and every file or setting a person can change.
+
+\law{17.1}{Exposure} Count every way in that is reachable from the network:
+\[ S = \sum_{\text{listeners}} (\text{sign-in methods on that listener}) \]
+A listener bound to 127.0.0.1 (the machine itself) is not reachable from the network and counts zero.
+
+\prop{17.1}{Least functionality} Every listener, protocol and sign-in method that is not needed should be removed, not merely left unused. A feature that is off by default can be switched on by mistake; a feature that was never installed cannot.
+
+\wex{17.1} A general-purpose broker often listens on 1883 (anonymous and password), 8883 (password over TLS) and 9001 WebSockets (password): S = 4, two of them unencrypted. A hardened broker has no 1883 listener at all, password sign-in only on 8883, certificate-only sign-in on 8884, WebSockets not installed, and its admin page bound to 127.0.0.1: S = 2, both TLS. Listen on one chosen address, never on every interface (0.0.0.0), and block all outbound traffic from the broker machine at the firewall.
+
+\sect{17.2 Passwords}
+\defn{17.2}{Online and offline guessing} \emph{Online}, the attacker tries passwords against the live sign-in, where the defender sees every attempt and can slow or stop it. \emph{Offline}, the attacker has stolen the password store and guesses on their own hardware, at full speed and unseen.
+
+\defn{17.3}{Password hash} A one-way function of the password and a random salt, stored instead of the password. A \emph{slow} hash (bcrypt, scrypt, or PBKDF2 with many iterations) makes every offline guess cost real work.
+
+A random secret of L characters from N symbols has H = L log₂ N bits (Law 15.2): 20 characters from 69 symbols is 122 bits. People do not choose at random, so password rules remove the choices attackers try first: at least 12 characters, not containing the username, not a common password even with digits added (including site words such as scada, plc and mqtt), several different characters and at least three character classes.
+
+\law{17.2}{Online budget under lockout} If at most k failures are allowed per window of T\_L seconds, the attacker gets G\_day = k × 86,400 / T\_L guesses a day, and after d days succeeds with probability at most d × G\_day / D against D equally likely candidates.
+
+\wex{17.2} Lockout after 5 failures per 15 minutes allows 480 guesses a day. Against a list of a million likely passwords, a year of non-stop guessing reaches 480 × 365 / 10⁶ = 17.5\%, with every failure logged. Count lockouts per user \emph{and} per client address: a colleague mistyping on another PC then cannot lock you out, and one PC cannot spray every name.
+
+\law{17.3}{Offline cracking time} With D candidates, work W per guess and attacker speed r: T = D × W / r. After the store is stolen, W is the only term the defender controls.
+
+\wex{17.3} An attacker with a list of 10⁹ candidates. Against a fast hash (about 200 hash operations per guess, at an assumed 10¹⁰ operations a second) the list takes 20 seconds. Against bcrypt at cost 12 (an assumed 2,000 guesses a second) it takes 5.8 days. Against a 122-bit generated password, neither finishes before the sun burns out. The hash buys days; only entropy buys centuries.
+
+\prop{17.2}{Devices use certificates} Many MQTT brokers have no per-account lockout for password sign-ins, and some store password hashes with few iterations. For devices, prefer client certificates (Section 15.6); for applications, long generated passwords; and watch refused sign-ins.
+
+\sect{17.3 Multi-factor sign-in}
+\defn{17.4}{Factor} Something you know (a password), something you have (a phone holding a secret key), or something you are. Two factors means an attacker must steal two different kinds of thing.
+
+\defn{17.5}{TOTP} Time-based one-time password (RFC 6238), the six-digit code of any authenticator app. Phone and server share a secret key K. Every 30 seconds both compute the same counter C = ⌊t / 30⌋ from Unix time t, take HMAC-SHA1(K, C), and reduce it to six digits.
+
+\wex{17.4} The RFC 6238 test case, key 12345678901234567890 at t = 59 s: C = 1; the HMAC is 75a48a19\ldots{}2d33ab; its last byte gives an offset of 11; the four bytes there, with the top bit cleared, are 1,094,287,082; the last six digits, 287082, are the code.
+
+\law{17.4}{Accepting codes} Servers accept the current step and one either side, so a phone clock up to 30 s wrong always works. A random guess succeeds with probability 3 / 10⁶. At 480 tries a day an attacker who already has the password needs about 481 days for an even chance, with every failure logged.
+
+\rul{17.1}{No replay, no back door} Accept a code only for a later step than the last one used, so a code read over a shoulder cannot be reused. Recover a lost phone by having another administrator reset the account, audited; never by recovery codes or ‘remember this device’. Keep at least two administrators.
+
+\onsite When every TOTP code is refused, check the time on the server and the phone before anything else. TOTP is a clock protocol.
+
+\sect{17.4 Authorisation: default deny}
+Authentication says who a client is; authorisation says what it may touch. In MQTT everything a client touches is a topic, so permissions are rules over topic filters (wildcards as in Section 5.1).
+
+\law{17.5}{Default deny with priority} For a client, an action (publish or subscribe) and a topic, collect the client's rules that match. If none match, the answer is \emph{deny}. Otherwise the highest-priority rule decides; giving every deny rule a higher priority than every allow rule means a deny always wins where both match.
+
+\wex{17.5} Account scada01 may publish and subscribe on plant/\# (allow, priority 0), but may not publish on plant/safety/\# (deny, priority 10).
+\begin{tbl}{P{0.15\textwidth}P{0.28\textwidth}P{0.12\textwidth}L}
+Action & Topic & Result & Deciding rule\\\midrule
+publish & plant/pump01/cmd & allow & allow plant/\#\\
+publish & plant/safety/trip & deny & deny plant/safety/\# (10 > 0)\\
+subscribe & plant/safety/trip & allow & the deny was for publish only\\
+publish & site/x & deny & no rule: default deny\\
 \end{tbl}
-\prop{17.1}{Shared responsibility} Supplier, integrator and owner are in series. A certified component does not make a secure system, and a secure design does not survive a careless integrator, or a technician who leaves a default password.
+\rul{17.2}{Narrow and separate} Give each account the narrowest filters that work, and grant publish and subscribe separately. A sensor needs publish on its own topics only; a dashboard needs subscribe only; a health monitor that only reports needs no subscribe rights at all. Refuse rules made only of wildcards (\#, +/\#, +/+), which allow nearly everything.
 
-\sect{17.2 Zones and conduits}
-\defn{17.1}{Zone} A group of assets with the same security requirements.
+\defn{17.6}{Roles} Named sets of permissions for people. A common split: \emph{Administrator} (users, certificates, settings), \emph{Operator} (enable, disable and disconnect clients), \emph{Auditor} (read and export the audit log). Never allow the last administrator to be disabled or deleted.
 
-\defn{17.2}{Conduit} The controlled communication path between two zones.
+\onsite Disabling an account is not the same as revoking its certificate. On some brokers a certificate login bypasses the account store, so a disabled device keeps connecting while its certificate is valid. Test it: disable a test device and confirm it is refused, and that its live connection is dropped.
 
-Zones are drawn from a risk assessment, not copied from the VLAN list: a VLAN is a network convenience, a zone is a statement about consequence. Safety systems normally get their own zone; so does wireless, and anything a vendor can reach remotely.
+\sect{17.5 Web consoles}
+A browser is a hostile place to run a security console: any other tab could be an attacker's page, and the browser will send it requests with your cookies attached.
+\begin{itemize}
+\item \textbf{Bind to the machine itself.} An admin page on 127.0.0.1 cannot be reached from the network at all; to use it, a person must be signed in to that PC. Do not forward or proxy the port.
+\item \textbf{Sessions end.} A session ends at the earlier of an idle timeout after the last click and an absolute limit after sign-in: t\_end = min(t\_last + T\_idle, t\_start + T\_abs). Limit sessions per account, and end them all when a password or role changes.
+\item \textbf{Stop forged requests (CSRF).} SameSite=Strict cookies; changes sent only with a custom header and a matching Origin; and a per-session token. Each alone stops cross-site request forgery.
+\item \textbf{Check the Host header,} which stops \emph{DNS rebinding}, where an attacker's domain is pointed at 127.0.0.1.
+\item \textbf{A strict Content Security Policy,} so injected script cannot run.
+\end{itemize}
 
-\law{17.1}{Possible conduits} Among z zones there are at most z(z − 1) / 2 pairs. Eight zones could be joined by 28 conduits; a good design uses only the few the process needs, each documented, filtered and monitored.
+\sect{17.6 Tamper-evident audit logs}
+An audit log answers who did what, when, from where, and whether it was allowed. Its enemy is the person who did something and would rather it was not recorded.
 
-\sect{17.3 Security levels}
-\begin{tbl}{P{0.12\textwidth}L}
-Level & Protection against\\\midrule
-SL 1 & Casual or accidental violation\\
-SL 2 & Intentional attack with simple means and generic skills\\
-SL 3 & Sophisticated means, moderate resources, industrial-control skills\\
-SL 4 & Sophisticated means with extended resources: a state-level actor\\
-\end{tbl}
-\defn{17.3}{SL-T, SL-C and SL-A} The \emph{target} level a zone needs, from the risk assessment; the \emph{capability} a product can deliver when properly configured; and the level \emph{achieved} once installed. A product with SL-C 3 installed with default passwords has an SL-A nowhere near 3.
+\law{17.6}{Hash chain} Each record includes the hash of the record before it, and each record's hash is signed with a secret key (HMAC):
+\[ h_i = \text{SHA-256}(\text{record}_i \text{ including } h_{i-1}), \qquad m_i = \text{HMAC}(K, h_i) \]
+A signed ‘head’ file holds the newest sequence number and hash.
 
-There are seven foundational requirements (FRs): FR1 identification and authentication, FR2 use control, FR3 system integrity, FR4 data confidentiality, FR5 restricted data flow, FR6 timely response to events, FR7 resource availability.
+\prop{17.3}{What the chain detects} Edit a record and its hash no longer matches; re-hash it and the signature fails; delete one and the next record's back-link breaks; reorder them and the sequence numbers jump; cut records off the end and the chain stops short of the signed head. Verification reports the first bad record.
 
-\law{17.2}{Security level is a vector} A security level is one number per FR. For each, the gap is g\_i = max(0, SL-T\_i − SL-A\_i), and a zone meets its target only when every gap is zero.
+\prop{17.4}{The limit of any local log} A full administrator on the same machine can read the key and rewrite the whole log consistently. The defence is a copy they cannot reach: forward every record to the Windows event log and on to a log collector or SIEM on another machine. And if a log is found damaged, stop and raise the alarm; never start a fresh chain over it, which would hide the damage.
 
-\wex{17.1} A treatment-plant control zone:
-\begin{tbl}{P{0.18\textwidth}*{7}{>{\centering\arraybackslash}X}}
- & FR1 & FR2 & FR3 & FR4 & FR5 & FR6 & FR7\\\midrule
-SL-T & 2 & 2 & 3 & 1 & 3 & 2 & 3\\
-SL-A & 2 & 1 & 3 & 1 & 2 & 2 & 3\\
-Gap & 0 & 1 & 0 & 0 & 1 & 0 & 0\\
-\end{tbl}
-Two gaps: operators share one login (FR2), and the conduit to the business network allows more than the historian traffic it exists for (FR5). Confidentiality, already at target, gets no money: availability and integrity normally outrank secrecy in a plant.
+\law{17.7}{Log capacity} N\_max = (B\_max − B\_reserve) / mean record size. 196 MiB of usable space at 375 bytes a record holds about 548,000 records: 63 days at one record every 10 seconds, but under a week during a sustained password attack. Rate-limit repeated events (recording the count) and archive routinely.
 
-\defn{17.4}{Compensating countermeasure} When a legacy device cannot meet a requirement, the zone meets it instead: a firewall permitting only named hosts and functions, monitoring, physical access control, or a jump host with individual logins. This is how brownfield plants comply without replacing every controller.
+\sect{17.7 Fail closed}
+\defn{17.7}{Fail closed and fail open} When a security check cannot run, \emph{fail closed} refuses service; \emph{fail open} carries on without it.
 
-\sect{17.4 Architecture after Purdue}
-The Purdue levels (Section 1.4) began as a functional model and became a security model by accident. Cloud historians, cellular RTUs and sensors that talk straight to a vendor's platform have broken the neat diagram. A defensible position: Purdue as a rigid network diagram is dying; Purdue as a way of reasoning about trust boundaries is fine; zones and conduits are what you actually build.
+\law{17.8}{Service condition} With checks c₁ … c\_k, each true only when it positively succeeds, serve = c₁ ∧ c₂ ∧ … ∧ c\_k. A check that errors, times out or cannot read its input counts as false.
 
-\textbf{Zero trust, adapted for OT.} You cannot put an agent on a 15-year-old PLC, so trust is enforced \emph{around} devices: micro-segmentation at the cell level; remote access brokered through the DMZ with multi-factor authentication and session recording; protocol-aware firewalls that permit Modbus reads but block writes.
+A broker that quietly carries on without its audit log or its revocation list is more dangerous than one that stops, because nobody knows it has degraded. Good designs close the network doors but keep the local management console working, so the cause can be fixed without losing configuration.
 
-\law{17.3}{A dependency is a series element} If a local action needs a remote service, A\_action = A\_local × A\_remote. A local HMI at 0.9999 whose logins must reach a central identity server at 0.995 is usable only 0.9949 of the time: about 45 hours a year locked out instead of under one. Never let safety or basic operation depend on a remote authentication server; provide cached credentials or a break-glass account.
+\law{17.9}{Persisted state} After a restart, a system's state is the last state that was successfully written. If writes can fail silently, a restart can bring back an older, less secure state.
 
-\defn{17.5}{DMZ rule} No traffic passes straight through the industrial DMZ. Sessions from either side terminate there, with different credentials on each side.
+\wex{17.6} A broker's user store was saved by writing a new file and renaming it over the old one. On Windows that rename fails when the target exists, and the error was only logged. Every change made while the broker ran was lost at the next restart, so a user disabled at runtime came back enabled. The lesson for testing: after any security change, restart the service and confirm the change survived.
 
-\defn{17.6}{Data diode} Hardware that physically permits traffic one way only, used to get data out of high-consequence zones. It cannot be misconfigured into letting traffic back in. Because no acknowledgement can return, diodes repeat each message: with loss p per copy and r copies, P\_lost = pʳ.
+\sect{17.8 Secrets at rest and backups}
+\law{17.10}{Two locks} A secret on disk is safe from an attacker who fails at least one of two locks: file permissions (only the service, SYSTEM and administrators can open the folder) and machine-bound encryption (Windows DPAPI in machine scope, so a copied file is unreadable on any other PC). A local administrator passes both: keep that group small and audited.
 
-\textbf{The SANS Five ICS Critical Controls:} an ICS-specific incident response plan; a defensible architecture; ICS network visibility and monitoring; secure remote access; and risk-based vulnerability management.
+Machine-bound encryption cannot be restored to a new PC, which is exactly what a backup must do. So backups are re-encrypted under a password, with a deliberately slow, memory-hungry key derivation such as scrypt. At its common setting each guess needs 128 MiB of memory, which cripples the graphics cards that break simple hashes. Store the backup password separately from the backup, and test a restore.
 
-\textbf{Cyber-Informed Engineering.} Assume the digital layer will be compromised and engineer out the worst outcome physically. A relief valve, a float switch hardwired to a pump stop, or a hardwired overspeed trip cannot be hacked.
-
-\sect{17.5 Remember and ask}
-\say{Security level is a vector, not a number; and SL-C is not SL-A.}
-\say{What is the worst thing this process can physically do, and is there a non-digital barrier in front of it?}
-\ask{What is the SL-T for this zone, and who signed off the risk assessment behind it?}
-\ask{How does the remote access system behave when its cloud service is unreachable?}
+\sect{17.9 Remember and ask}
+\say{Remove what is not needed; disabled is not the same as absent.}
+\say{The hash buys days; only entropy buys centuries.}
+\ask{If I disable a device's account, is a device with a valid certificate refused at once?}
+\ask{Where does the audit log go that the local administrator cannot reach?}
 
 \sect{Exercises}
 \begin{enumerate}
-\item Explain SL-T, SL-C and SL-A in one sentence each. (Definition 17.3)
-\item Six zones. Find the maximum number of conduits. (15)
-\item Target (3, 3, 3, 1, 2, 3, 3); achieved (2, 3, 3, 1, 2, 1, 3). Find the gap vector. ((1, 0, 0, 0, 0, 2, 0))
-\item Name the five SANS ICS critical controls. (Section 17.4)
-\item What does a data diode guarantee that a firewall does not? (Physically one-way traffic, whatever the configuration)
+\item A broker listens on 1883 (anonymous and password), 8883 (password) and 9001 (password). Find S. (4)
+\item Lockout at 3 failures per 30 minutes. Find the guesses per day. (144)
+\item A random 16-character password from 62 letters and digits. Find its entropy. (95.3 bits)
+\item Does plant/+/temp match plant/pump01/motor/temp? (No: + is exactly one level)
+\item Signed in at 07:30 with a 15-minute idle timeout; last click 09:10. When does the session end? (09:25)
+\item Why is a fresh audit chain never started over a damaged one? (It would hide the damage)
+\item Is the service condition true if the revocation-list check times out? (No: a check that cannot complete counts as false)
 \end{enumerate}

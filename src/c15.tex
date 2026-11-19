@@ -54,8 +54,40 @@ Two machines agree a shared key across a network an attacker is watching using \
 
 TLS 1.3 sets up a secure channel in one round trip after the TCP connection, TLS 1.2 in two. On a satellite link with a 600 ms round trip, TLS 1.3 connects in about 1.2 s and TLS 1.2 in about 1.8 s: negligible for a session held open all day, significant for a device that reconnects often. Once running, TLS adds about 22 bytes per record.
 
-\sect{15.5 Pre-shared keys}
-\defn{15.4}{PSK} A secret key installed on both ends in advance. In a PSK handshake each side proves it knows the key; no certificates are exchanged.
+\sect{15.5 Choosing TLS settings}
+\defn{15.4}{AEAD} Authenticated encryption with associated data: one operation that encrypts and proves the data was not altered. AES-GCM and ChaCha20-Poly1305 are AEAD ciphers. Older CBC suites encrypt and authenticate separately, which produced a decade of padding attacks.
+
+\law{15.5}{Weakest component} A connection is only as strong as the weakest of its key exchange, signature, cipher and hash:
+\[ s_{conn} = \min(s_{kx},\ s_{sig},\ s_{cipher},\ s_{hash}) \]
+\wex{15.1} Key exchange over X25519 (about 128 bits), a server signature with an ECDSA P-384 key (192), and AES-256-GCM (256) with SHA-384 (192): the connection is min(128, 192, 256, 192) = 128 bits, the modern benchmark. The P-384 certificate does not make the session 192-bit; it makes the identity harder to forge over the long life of a site CA.
+
+\prop{15.1}{A plant TLS policy} TLS 1.2 minimum, 1.3 where every client supports it; ECDHE key exchange only, so every session has forward secrecy; AEAD ciphers only, with no CBC, RC4 or NULL suites; and one key type (one curve family) for every certificate, so there is one kind of key to manage. A client that only speaks TLS 1.0 or 1.1 should be upgraded or replaced, not accommodated.
+
+On small messages the TLS record overhead matters: 22 bytes per record for TLS 1.3, 29 for TLS 1.2 with GCM. A 60-byte sensor message grows by about a third; a 1,000-byte batch by about 2\%. Batching a device's values into one message halves the overhead.
+
+\sect{15.6 A site certificate authority}
+A site with no internet connection can still use certificates, by running its own certificate authority.
+
+\defn{15.5}{Certificate authority, CA} The key that signs certificates. Anything that trusts the CA's certificate accepts every certificate it has signed. A site CA should be constrained to sign device certificates only, never another CA (in X.509 terms, pathlen 0).
+
+\defn{15.6}{Certificate revocation list, CRL} A list, signed by the CA, of certificate serial numbers that must no longer be accepted. It has its own expiry date.
+
+\defn{15.7}{PKCS\#12 bundle} One password-protected file (.p12 or .pfx) holding a device's private key, its certificate and the CA certificate: the usual way to carry a certificate to a device. Send the password by a different route from the file.
+
+\law{15.6}{CRL refresh margin} An expired CRL means no certificate can be proved unrevoked, so a correct server refuses every certificate client: it stops a site as surely as a cut cable. A CRL valid for D days, rebuilt whenever fewer than R days remain and checked every c hours, always has at least R − c/24 days of life left.
+
+\wex{15.2} D = 30, R = 25, c = 1 hour: the CRL is rebuilt about every 5 days and always has nearly 25 days left, so a server switched off for three weeks still starts with a valid list.
+
+\prop{15.2}{Revocation must be immediate} Adding a serial to the CRL is not enough. The server must load the new list, and connections already open must be dropped, because the CRL is consulted only during a handshake.
+
+\wex{15.3} 500 devices on 825-day certificates (2.26 years) need 500 / 2.26 = 221 renewals a year, nearly one per working day; on 365-day certificates, 500. A report of certificates expiring within 30 days turns renewals into planned work.
+
+A TLS server asks every client for a certificate or none, never ‘optionally’. A broker that serves both people with passwords and devices with certificates therefore needs two listeners, for example password sign-in on 8883 and certificate-only on 8884. Where the certificate's name becomes the client's username, certificate names must follow the same rules as account names, or a device certificate could be issued with the name of an administrator or a system account.
+
+\inpractice{SecureLink} SecureLink runs an offline site CA on the broker PC: an ECDSA P-384 CA valid for 20 years and constrained to sign devices only; device certificates of 365 days by default; a 30-day CRL rebuilt when fewer than 25 days remain, checked hourly; and revocation that reloads the broker in place and drops the device's live connections. Its TLS policy allows only ECDHE-ECDSA AEAD suites.
+
+\sect{15.7 Pre-shared keys}
+\defn{15.8}{PSK} A secret key installed on both ends in advance. In a PSK handshake each side proves it knows the key; no certificates are exchanged.
 \begin{tbl}{P{0.22\textwidth}LL}
  & Certificates & Pre-shared key\\\midrule
 Set-up & Needs a CA and certificate management & Install a key on each end\\
@@ -66,13 +98,14 @@ If a secret leaks & Revoke one certificate & Every device sharing that key is ex
 \end{tbl}
 \rul{15.1}{Rules for PSK} One unique key per device; at least 128 bits, randomly generated; a PSK mode that includes ECDHE where available; a recorded rotation date; and never in a repository or a commissioning spreadsheet.
 
-\sect{15.6 A commissioning checklist}
+\sect{15.8 A commissioning checklist}
 \begin{itemize}
 \item Minimum TLS 1.2, prefer 1.3. No SSL. No plain MQTT on port 1883.
 \item Device clock correct and synchronised before enabling certificate checks.
 \item Name in the certificate matches the address the device connects to.
 \item CA certificate loaded on the device; private keys never leave the device they belong to.
-\item Expiry dates in the maintenance system with a warning 60 days ahead.
+\item Expiry dates in the maintenance system with a warning 60 days ahead; CRL expiry monitored too.
+\item Only ECDHE key exchange and AEAD ciphers enabled.
 \item Unique credentials per device, and access rules limiting each to its own data.
 \end{itemize}
 
@@ -81,5 +114,7 @@ If a secret leaks & Revoke one certificate & Every device sharing that key is ex
 \item Find the entropy of a 12-character password from 94 printable symbols. (78.7 bits)
 \item 900 devices with 3-year certificates. Renewals per year? (300)
 \item An RTU's TLS connection fails just after a power outage that reset its clock to 2000. Which check fails? (Validity period: the certificate appears not yet valid)
+\item A connection uses ECDHE P-256 (128 bits), an RSA-2048 signature (112) and AES-256-GCM. Find its strength. (112 bits)
+\item A CRL is valid 7 days, rebuilt below 2 days left, checked every 6 hours. Find the minimum life left. (1.75 days)
 \item What is the main weakness of a shared pre-shared key? (One leak exposes every device using it)
 \end{enumerate}

@@ -6,7 +6,7 @@ Modbus, DNP3 and the first OPC were designed for closed networks where anyone wh
 
 \defn{16.2}{Challenge and response} The receiver of a critical request replies with a random challenge, and the sender must return a MAC over the challenge and the request. A recorded old reply is useless, because the next challenge is different.
 
-\prop{16.1}{Integrity before secrecy} For most control traffic, proving a command is genuine matters more than hiding it. Authentication-only modes also leave the traffic readable by passive monitoring (Chapter 18), which encryption would blind.
+\prop{16.1}{Integrity before secrecy} For most control traffic, proving a command is genuine matters more than hiding it. Authentication-only modes also leave the traffic readable by passive monitoring (Chapter 19), which encryption would blind.
 
 \sect{16.2 What exists}
 \begin{tbl}{P{0.27\textwidth}L}
@@ -46,7 +46,7 @@ User authentication sits on top: anonymous, username and password, or user certi
 \end{itemize}
 \law{16.2}{Key count} Among n devices, a key for every pair needs n(n − 1) / 2; one key per device shared only with the master needs n. 300 outstations need 300 keys in a star, against 44,850 pairwise, which is why telemetry security is built as a star around the master.
 
-\onsite Where a device cannot be secured, protect the path to it (Section 17.4): a firewall that permits only the master's address and only the function codes needed, monitoring, and physical security. Record the reason as a compensating countermeasure.
+\onsite Where a device cannot be secured, protect the path to it (Section 18.4): a firewall that permits only the master's address and only the function codes needed, monitoring, and physical security. Record the reason as a compensating countermeasure.
 
 \sect{Exercises}
 \begin{enumerate}

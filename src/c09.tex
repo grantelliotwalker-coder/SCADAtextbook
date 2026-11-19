@@ -47,7 +47,7 @@ The parallel law assumes independent failures. Two virtual servers on the same h
 
 \onsite Prove failover, do not assume it. At commissioning and at least yearly: switch over deliberately, confirm that clients reconnect, alarms are not lost or duplicated, controls work from the new main, and history has no gap. Then switch back. Record how long each step took.
 
-Redundancy also makes maintenance possible without an outage: patch the standby, switch over, patch the former main (Section 19.4).
+Redundancy also makes maintenance possible without an outage: patch the standby, switch over, patch the former main (Section 20.4).
 
 \sect{9.6 Clients}
 Operators now reach SCADA from desktop clients, web browsers and phones. Every additional client type is another path into the system to secure (Part IV), and the same display may need to work on a 4K control-room screen and a phone. Server sizing must include client load: each open graphic subscribes to its points.

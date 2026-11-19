@@ -1,66 +1,53 @@
-\chap{Chapter 19. Patching, Vulnerabilities and the Law}
-Security is now a legal duty for both the people who make SCADA products and the people who run them. This chapter covers how vulnerabilities are ranked and patched without outages, the European law that binds vendors worldwide, and the Australian law that binds operators. It is a technical summary, not legal advice; Australian facts were checked on 19 November 2026.
+\chap{Chapter 19. Real Attacks and the Kill Chain}
+Industrial attacks are rare, but they are real, and several have targeted exactly the kind of systems a SCADA technician maintains. This chapter gives what actually happened in the incidents people quote, the model that explains how such attacks unfold, and what a technician can do about them.
 
-\sect{19.1 Ranking vulnerabilities}
-\law{19.1}{CVSS severity bands} Vulnerabilities are scored 0 to 10 under the Common Vulnerability Scoring System: 0.1–3.9 low, 4.0–6.9 medium, 7.0–8.9 high, 9.0–10.0 critical.
-
-The score describes the flaw, not your risk. Rank by three questions: is it reachable on our network, is it being exploited, and what could it make the process do?
-
-\wex{19.1} Three findings on one site:
-\begin{tbl}{P{0.3\textwidth}P{0.09\textwidth}LP{0.18\textwidth}}
-Finding & CVSS & Reachable? Exploited? & Priority\\\midrule
-Web server flaw on an HMI behind two firewalls, service unused & 9.8 & Not reachable; no known exploitation & Next outage\\
-Remote-access appliance flaw on the internet edge & 7.5 & Reachable; actively exploited & Now\\
-Unauthenticated Modbus writes to a PLC & none & Reachable from the control zone; by design & Compensate (Section 17.3)\\
+\sect{19.1 The cases}
+\begin{tbl}{P{0.21\textwidth}LP{0.27\textwidth}}
+Incident & What happened & Lesson\\\midrule
+Maroochy Shire, Queensland, 2000 & A former contractor used a radio and stolen control software to command sewage pump stations, with at least 46 attempts in March and April. About 800,000 litres of raw sewage were released & An insider with knowledge, no malware. Unauthenticated radio telemetry\\
+Stuxnet, 2010 & Targeted Siemens S7-315 and S7-417 controllers driving centrifuges, and replayed normal readings to operators & The HMI can lie\\
+Ukraine, 2015 & Attackers used the operators' own HMIs to open breakers at three distribution companies, then wiped workstations and bricked serial-to-Ethernet converters. About 225,000 customers lost power & Remote access and native tools are enough\\
+Industroyer, 2016 & First malware to speak grid protocols directly: IEC 60870-5-101 and -104, IEC 61850 and OPC DA & Protocol knowledge is now packaged\\
+TRITON, 2017 & Targeted a Triconex safety instrumented system; found because a bug in it tripped the plant & The safety system is a target\\
+Colonial Pipeline, 2021 & Ransomware hit IT only; the company shut the pipeline because it could not bill or be sure of containment & OT outage without OT compromise\\
+PIPEDREAM, 2022 & A modular toolkit for Schneider and Omron PLCs, CODESYS and OPC UA, found before use & Tools target whole vendor families\\
+Unitronics PLCs, 2023 & Internet-exposed PLCs at water utilities defaced using a default password & Low skill, real impact\\
+FrostyGoop, 2024 & Modbus TCP commands to heating controllers in Lviv. Dragos reported over 600 apartment buildings without heat for almost 48 hours; Ukrainian accounts cited by critics describe a smaller, shorter outage & Modbus has no authentication; no exploit was needed\\
+Volt Typhoon (VOLTZITE) & Living off the land with built-in tools, stealing GIS data, network diagrams and configuration & The engineering data is the target\\
 \end{tbl}
-The highest score is the lowest priority. Dragos reported that only 2\% of ICS-relevant vulnerabilities in 2025 warranted immediate action.
 
-\law{19.2}{Exposure window} A known vulnerability is open from disclosure until patched, W = t\_patched − t\_disclosed. If exploitation attempts succeed at a constant rate h per day, the chance of compromise is P = 1 − e⁻ʰᵂ. With h = 0.002 per day: 5.8\% if patched within 30 days, 30\% at six months, 52\% at a year. The rate is illustrative; the shape is not. The only variable the site controls is W.
+\sect{19.2 The ICS Cyber Kill Chain}
+\defn{19.1}{ICS Cyber Kill Chain} The model of Assante and Lee, in two stages. \emph{Stage 1} looks like an IT intrusion: reconnaissance, delivery, exploitation, installation, command and control, and then learning the process and stealing engineering data. \emph{Stage 2} develops, tests and delivers an attack built for that particular plant.
 
-\sect{19.2 Patching without an outage}
-Patching used to be avoided for fear that a Windows update would break the SCADA software. Vendors now test operating-system patches against their products and publish the results (Schneider Electric does this for Geo SCADA), which turns patching into a procedure.
-\begin{enumerate}
-\item Check the vendor's published compatibility for the patch, and the release notes for your version.
-\item Take a verified backup of database and configuration.
-\item Apply to a test or development system; run through key displays and drivers.
-\item Patch the standby server; confirm it resynchronises.
-\item Switch over, so the patched server becomes main.
-\item Patch the former main; confirm it rejoins as standby.
-\item Patch client workstations in groups, never all at once.
-\item Record what was installed, where and when, against the work order.
-\end{enumerate}
-One healthy server is in service throughout (Law 9.6). Measure \emph{patch compliance}, the share of systems in scope at the target level, monthly: what is not measured drifts.
+\prop{19.1}{The defender's window} A meaningful physical attack needs process knowledge, which takes time to gather. That dwell time is the defender's chance, but only if someone is watching the OT network.
 
-\sect{19.3 The EU Cyber Resilience Act}
-The Cyber Resilience Act (Regulation (EU) 2024/2847) makes the manufacturer of a product with digital elements legally responsible for its security throughout a declared support period, generally at least five years. Reporting duties apply from 11 September 2026: early warning of an actively exploited vulnerability within 24 hours, fuller notification within 72 hours, and a final report within 14 days of a fix. Full requirements apply from 11 December 2027, with penalties up to €15 million or 2.5\% of worldwide turnover. Manufacturers must ship secure by default, provide security updates, and keep a software bill of materials (SBOM).
+\law{19.1}{Detection within the dwell time} If monitoring has a probability d of spotting an intruder on any one day, the chance of detection within T days is:
+\[ P_{detect} = 1 - (1-d)^T \]
+Over a 90-day Stage 2 preparation, d = 0.02 gives 84\%; d = 0.002 gives 16.5\%. The figures are illustrations; visibility multiplies the value of every day the attacker needs.
 
-A global vendor does not keep a weaker product for the rest of the world, so Australian sites receive the same hardening and patch cadence. The consequence for operators: once a fix is published, the remaining risk sits with whoever has not installed it.
+\law{19.2}{Barriers in series} An attacker who must pass independent barriers succeeding with probabilities p\_i reaches the process with probability ∏ p\_i. Remote access 0.3, IT-to-OT firewall 0.2, engineering workstation 0.5, unauthenticated PLC write 0.9: 0.027. Multi-factor authentication on remote access (0.05) cuts it to 0.0045. Real barriers are not fully independent: stolen administrator credentials may pass several at once.
 
-\sect{19.4 Australian law}
-\defn{19.1}{SOCI Act} The Security of Critical Infrastructure Act 2018 covers eleven sectors, including energy, water and sewerage, transport, communications and health. Responsible entities must register assets, report cyber incidents, and run a risk management programme. In water and sewerage it captures larger utilities; the threshold is commonly cited as 100,000 connections (verify for your utility).
+The Dragos 2026 Year in Review (covering 2025) reported adversaries moving from pre-positioning to mapping control loops; VOLTZITE reached Stage 2 after extracting configuration files and alarm data from engineering workstations, and ransomware groups affecting industrial organisations rose 49\% to 119.
 
-\law{19.3}{Incident reporting clock} The clock starts when the entity becomes \emph{aware}, not when the incident began.
-\begin{tbl}{P{0.45\textwidth}L}
-Impact & Report to ASD's ACSC within\\\midrule
-Significant impact on availability & 12 hours\\
-Relevant impact (availability, integrity, reliability, confidentiality) & 72 hours\\
-Report first made verbally & Written record within 84 hours\\
-\end{tbl}
-\wex{19.2} At 21:40 on a Friday the on-call technician realises ransomware has stopped the SCADA servers and operators are running the plant by hand. A significant-impact report is due by 09:40 Saturday. Twelve hours overnight leaves no time to work out who is allowed to make the call: the roster, decision maker and reporting steps belong in the incident response plan before the night they are needed. The technician's part is to recognise it quickly and escalate.
+\sect{19.3 Patterns, and what the technician does about them}
+\begin{itemize}
+\item Most incidents start in IT or through remote access. Know every remote-access path into your system, and remove the ones nobody uses.
+\item Attackers use protocols exactly as designed. Detection needs to know normal process behaviour; you are the person who knows it.
+\item Engineering workstations, project files, alarm data and network diagrams are the crown jewels. Do not leave them on laptops, shared drives or email.
+\item Several famous incidents exploited no vulnerability: an insider (Maroochy), a default password (Unitronics), valid Modbus (FrostyGoop), an IT dependency (Colonial). Change defaults, remove leavers' access promptly, and close exposed ports.
+\item Report anything odd: an unexplained setpoint change, a login at 3 a.m., a PLC in program mode. Most incidents are found by someone who noticed.
+\end{itemize}
 
-\defn{19.2}{CIRMP} The Critical Infrastructure Risk Management Program: cyber and information security, personnel, supply chain, and physical and natural hazards, with a board-approved annual report. For cyber, the entity adopts a recognised framework at a stated level: ISO/IEC 27001, the Essential Eight, the NIST Cybersecurity Framework, C2M2, or the Australian Energy Sector Cyber Security Framework (AESCSF).
-
-\textbf{Cyber Security Act 2024.} Since 30 May 2025, a business with turnover above \$3 million, or the responsible entity for a critical infrastructure asset, must report a ransomware or cyber-extortion payment within 72 hours.
-
-\textbf{ASD's Principles of OT Cyber Security (October 2024).} Safety is paramount; knowledge of the business is crucial; OT data is extremely valuable and needs protecting; segment and segregate OT from all other networks; the supply chain must be secure; people are essential. The third is the one people miss: diagrams, project files and alarm data are what an attacker needs for Stage 2.
-
-\textbf{The Essential Eight in OT.} Application control, restricting administrative privileges, multi-factor authentication for remote access and regular backups (including configuration exports and PLC projects) translate well to SCADA servers. Patching operating systems and applications works for servers in planned windows, rarely for controllers. Office macro settings are mostly irrelevant inside the control zone.
+\sect{19.4 Remember and ask}
+\say{FrostyGoop did not exploit anything. It sent valid Modbus.}
+\ask{Could our monitoring tell the difference between an engineer and an attacker writing the same setpoint?}
+\ask{How long could we run the plant with the IT network completely gone?}
 
 \sect{Exercises}
 \begin{enumerate}
-\item h = 0.001 per day and W = 90 days. Find the probability of compromise. (8.6\%)
-\item 46 of 52 servers are at the target patch level. Find compliance. (88.5\%)
-\item An entity becomes aware of a critical incident at 16:30 on a Sunday. When is the report due? (04:30 Monday)
-\item List the six ASD principles of OT cyber security. (Section 19.4)
-\item Why should a redundant server pair be patched standby first? (One healthy server stays in service throughout)
+\item Which attack targeted a safety system, and how was it found? (TRITON; a bug tripped the plant)
+\item What separates Stage 1 from Stage 2? (Gaining access and learning, against building a plant-specific attack)
+\item Name two incidents where no vulnerability was exploited. (Any two of Maroochy, Unitronics, FrostyGoop, Colonial)
+\item d = 0.01 per day, dwell time 60 days. Find the detection probability. (45.3\%)
+\item Barriers 0.4, 0.25 and 0.8. Find the chance of reaching the process. (0.08)
 \end{enumerate}

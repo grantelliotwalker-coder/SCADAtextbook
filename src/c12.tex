@@ -86,7 +86,20 @@ Sticky duty & The duty unit keeps the duty while it is running and healthy; rota
 
 \wex{12.4} Two pumps at a station that pumps 10 hours a day. Fixed duty: pump 1 runs 3,650 hours a year and pump 2 almost none, and pump 2's faults are found only when it is finally needed. Equalised: each runs 1,825 hours, and both are proven every week.
 
+\law{12.9}{Wet-well cycle time} A pump of rate Q empties a working volume V between its start and stop levels while inflow q refills it. One cycle takes:
+\[ T = \frac{V}{Q - q} + \frac{V}{q}, \qquad T_{min} = \frac{4V}{Q} \ \text{ when } q = \frac{Q}{2} \]
+The most starts per hour happen when inflow is half the pump's rate, not at the highest or lowest inflow.
+
+\wex{12.5} 10 m³ between start and stop levels, and a pump delivering 50 L/s: T\_min = 4 × 10 / 0.05 = 800 s, so at most 4.5 starts an hour. With two pumps rotating on each start, each sees at most 2.25. Compare this with the motor maker's maximum starts per hour. If it is exceeded, widen the start and stop levels to increase V; rotation only shares the starts out.
+
 \onsite Test rotation and changeover in the ITP (Chapter 21): the duty moves when it should; an assist starts only after its start delay; a faulted unit is replaced by the standby; and an ‘available’ signal lost while a unit runs does what the design says, which is a question for the process engineer, not for the tester.
+
+\sect{12.9 Where the electricity price comes from}
+Moving pumping off-peak (Worked Example 12.3) pays because of how the wholesale market sets its price.
+
+\law{12.10}{Merit order} In the National Electricity Market (Chapter 1), generators offer capacity at prices they choose. AEMO dispatches the cheapest offers until demand is met, and every dispatched generator is paid the price of the last, marginal offer. Prices are set for every five-minute interval: 288 a day.
+
+\wex{12.6} Illustrative offers: wind and solar 3,000 MW at −\$10/MWh, coal 4,000 MW at \$40, combined-cycle gas 1,500 MW at \$90, and peaking gas 1,000 MW at \$300. At 8,000 MW of demand the marginal offer is combined-cycle gas, and the price is \$90/MWh. At 9,000 MW the peaking plant is needed and the price is \$300/MWh: 12\% more demand, more than three times the price. A station that can shift its pumping out of those intervals avoids the steepest part of the curve.
 
 \sect{Exercises}
 \begin{enumerate}
@@ -95,4 +108,6 @@ Sticky duty & The duty unit keeps the duty while it is running and healthy; rota
 \item A 110 kW pump runs at 90\% speed. Find the power. (80.2 kW)
 \item Three pumps share 9,000 running hours a year with runtime equalisation. How long does each run? (3,000 hours)
 \item A loop cycles in auto. In manual the PV still cycles. Is the cause the tuning? (No: look at the process, valve or another loop)
+\item A wet well holds 12 m³ between its start and stop levels, and the pump delivers 40 L/s. Find the most starts per hour. (3)
+\item In Worked Example 12.6, demand is 7,500 MW. Find the price. (\$90/MWh)
 \end{enumerate}

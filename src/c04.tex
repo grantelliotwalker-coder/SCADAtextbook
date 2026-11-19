@@ -86,6 +86,20 @@ with SNR as a ratio, not in decibels.
 
 \wex{4.3} A 25 kHz channel with α = 0.25 carries about 20,000 symbols a second: 40 kbit/s with QPSK, 80 kbit/s with 16-QAM, 160 kbit/s with 256-QAM, before error-correction overhead. The Shannon limit at 10 dB SNR (a ratio of 10) is 25,000 × log₂ 11 ≈ 86 kbit/s, so 256-QAM is impossible there; at 30 dB (1,000) it is about 249 kbit/s. A 12.5 kHz channel halves every figure. Know your channel's bandwidth and modulation before blaming the protocol for a slow poll cycle (Law 4.2).
 
+\law{4.8}{Free-space path loss} With distance d in kilometres and frequency f in megahertz, the loss in decibels is:
+\[ FSPL = 20\log_{10} d_{km} + 20\log_{10} f_{MHz} + 32.44 \]
+\law{4.9}{Link budget and fade margin} The received power is what the transmitter sends, plus antenna gains, minus cable losses and path loss. The fade margin is how far that sits above the receiver's sensitivity S\_rx for the modulation in use:
+\[ P_{rx} = P_{tx} + G_{tx} - L_{tx} + G_{rx} - L_{rx} - FSPL, \qquad FM = P_{rx} - S_{rx} \]
+Powers are in dBm, antenna gains in dBi and losses in dB. A margin of 20 to 30 dB is a common target for a fixed telemetry link: it is what the link holds in reserve for rain, foliage, atmospheric fading and an ageing cable.
+
+\wex{4.4} A 20 km link at 450 MHz: FSPL = 26.0 + 53.1 + 32.4 = 111.5 dB. With a 5 W transmitter (37 dBm), a 6 dBi omni at the base, a 10 dBi Yagi at the site and 2 dB of cable loss at each end, P\_rx = 37 + 6 − 2 + 10 − 2 − 111.5 = −62.5 dBm. Against a sensitivity of −110 dBm the fade margin is 47.5 dB in free space. Terrain, trees and buildings take tens of decibels more, which is why paths are surveyed and not just calculated. Because path loss rises 6 dB for every doubling of distance, each 6 dB of margin lost halves the range at which the link still works.
+
+\law{4.10}{First Fresnel zone} The radio beam fills an ellipse around the straight line between the antennas. At d\_1 km from one end and d\_2 km from the other, on a path of d km at f GHz, its radius in metres is:
+\[ r_1 = 17.32 \sqrt{\frac{d_1\, d_2}{f_{GHz}\, d}} \]
+Keep at least 60\% of that radius clear of ground, trees and buildings. A path with clear line of sight but an obstructed Fresnel zone still loses signal.
+
+\wex{4.5} At the middle of the 20 km, 450 MHz link, r\_1 = 17.32 × √(10 × 10 / (0.45 × 20)) = 57.7 m, so about 35 m of clearance is needed above the trees at mid-path. This is why UHF telemetry antennas go on towers and hills, and why a growing tree line can slowly degrade a link that was perfect at commissioning.
+
 \rul{4.1}{Monitor the radios, not only the RTUs} Read each radio's SNR, received signal strength and error counts (usually by SNMP), trend them, and alarm on a falling trend. Interference between transmit and receive on a shared antenna is cured with a properly tuned duplexer, not with retries.
 
 \inpractice{Unity Water} Presented at the 2026 conference: Unity Water's radio upgrade chose 4RF Aprisa SR+ radios, fixed interference with duplexers, put every base station's equipment in hot standby with UPS backup at repeaters, and reads SNR from the radios. A SCADAPack 474i edge controller running Node-RED collects the radios' SNMP data at the site, instead of the master polling every RTU for it, and radio configuration scripts are generated automatically from the Geo SCADA database. The network itself is routed rather than flat (Section 8.6).
@@ -101,4 +115,7 @@ with SNR as a ratio, not in decibels.
 \item A 12.5 kHz channel with α = 0.25 uses 16-QAM. Find the raw bit rate. (40 kbit/s)
 \item Find the Shannon limit of a 25 kHz channel at 20 dB SNR. (About 166 kbit/s)
 \item Why does DNP3 deliver correct data after an hour's outage? (Proposition 4.1)
+\item Find the free-space path loss for 30 km at 900 MHz. (121.1 dB)
+\item P\_rx = −95 dBm and the sensitivity is −112 dBm. Find the fade margin. Is it enough for a fixed link? (17 dB; marginal)
+\item Find the first Fresnel zone radius at the middle of a 10 km link at 450 MHz. (40.8 m)
 \end{enumerate}

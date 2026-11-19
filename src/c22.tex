@@ -35,16 +35,25 @@ Rebuilding means installing the control system on new or wiped hardware with not
 \item \textbf{Access control lists and firewall rules} recorded, so the rebuilt network is no more open than the old one.
 \end{itemize}
 
+\defn{22.4}{Recovery point and recovery time} The recovery point objective (RPO) is how much data, measured in time, can be lost. The recovery time objective (RTO) is how long restoring the service may take.
+
+\law{22.2}{Backup interval and restore time} With backups every T\_b, a failure at a random moment loses T\_b / 2 of data on average and T\_b at worst, so T\_b must not exceed the RPO. Restoring S bytes at throughput θ, plus the fixed steps t\_i of rebuilding and testing, takes:
+\[ T_{restore} = \frac{S}{\theta} + \sum_i t_i \le RTO \]
+
+\rul{22.2}{3-2-1-1-0} Keep at least 3 copies of the data, on 2 kinds of media, 1 of them off site and 1 offline or immutable (unchangeable even by an administrator), with 0 errors when a restore is tested. The offline copy is the one a wiper cannot reach.
+
+\wex{22.2} A 2 TB server image restored at 200 MB/s takes 2 × 10¹² / 2 × 10⁸ = 10,000 s, or 2.8 hours, before any rebuilding or testing. With an RTO of 4 hours, that leaves 1.2 hours for everything else. Measure the real figure by restoring onto spare hardware.
+
 \sect{22.4 Able to restart}
 Reconnecting after an outage is a fault of its own. Every outstation that buffered events (Proposition 4.1) and every edge node that stored data (Definition 5.11) sends it at once.
 
-\law{22.2}{Reconnect surge} If N sites each return with E buffered events, and the path or server can process μ events per second, the backlog takes:
+\law{22.3}{Reconnect surge} If N sites each return with E buffered events, and the path or server can process μ events per second, the backlog takes:
 \[ T_{drain} = \frac{N \cdot E}{\mu} \]
 and while the arrival rate exceeds μ, delay grows without limit (Law 9.4).
 
-\wex{22.2} 300 RTUs each return with 2,000 buffered events, and the server's driver handles 5,000 events a second: 600,000 events take 120 s, during which live values are minutes old. On one 40 kbit/s radio channel serving 40 sites, at about 15 bytes an event, the channel's share is 40 × 2,000 × 15 × 8 / 40,000 = 240 s. Stagger reconnection by area, and restore the most important sites first.
+\wex{22.3} 300 RTUs each return with 2,000 buffered events, and the server's driver handles 5,000 events a second: 600,000 events take 120 s, during which live values are minutes old. On one 40 kbit/s radio channel serving 40 sites, at about 15 bytes an event, the channel's share is 40 × 2,000 × 15 × 8 / 40,000 = 240 s. Stagger reconnection by area, and restore the most important sites first.
 
-\law{22.3}{Clock drift in isolation} A device clock with error y drifts y × T\_iso over an isolation (Law 3.3). At 5 parts per million, 90 days is 39 seconds: enough to scramble sequence-of-events records and to make certificates look not yet valid. Resynchronise every clock before trusting its timestamps, and before re-enabling certificate checks.
+\law{22.4}{Clock drift in isolation} A device clock with error y drifts y × T\_iso over an isolation (Law 3.3). At 5 parts per million, 90 days is 39 seconds: enough to scramble sequence-of-events records and to make certificates look not yet valid. Resynchronise every clock before trusting its timestamps, and before re-enabling certificate checks.
 
 \sect{22.5 Planning and people}
 \begin{itemize}
@@ -65,4 +74,6 @@ and while the arrival rate exceeds μ, delay grows without limit (Law 9.4).
 \item 120 sites each return with 500 events; the server handles 2,000 a second. Find the drain time. (30 s)
 \item A clock is 2 parts per million out. How far does it drift in 90 days? (15.6 s)
 \item Why keep printed network diagrams, and why secure them? (Recovery may start with no computers; they are also valuable to an attacker)
+\item Backups run every 12 hours. Find the average and worst-case data lost. (6 h; 12 h)
+\item 500 GB restores at 100 MB/s, plus 3 hours of rebuilding. Does it meet a 4-hour RTO? (No: 4.4 h)
 \end{enumerate}

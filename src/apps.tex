@@ -21,6 +21,9 @@ Law & Formula\\\midrule
 4.5 Latency & T\_total = sum of all stage delays\\
 4.6 Radio bit rate & R\_b ≈ B / (1 + α) × log2 M\\
 4.7 Shannon limit & C = B × log2(1 + SNR)\\
+4.8 Free-space path loss & FSPL = 20 log10 d\_km + 20 log10 f\_MHz + 32.44 dB\\
+4.9 Fade margin & FM = P\_rx − S\_rx\\
+4.10 Fresnel radius & r\_1 = 17.32 × √(d\_1 × d\_2 / (f\_GHz × d)) m\\
 5.1 Fan-out & λ\_out = s × λ\\
 5.4 Lost Sparkplug messages & m = (received − expected) mod 256\\
 5.5 Outage buffer & B = λ × b × T\_out\\
@@ -58,6 +61,8 @@ Law & Formula\\\midrule
 12.6 Limit shift & Δ = z × (σ\_1 − σ\_2)\\
 12.7 Affinity laws & Q ∝ N; H ∝ N²; P ∝ N³\\
 12.8 Runtime share & T\_run / n per unit when equalised\\
+12.9 Wet-well cycle & T\_min = 4V / Q\\
+12.10 Merit order & price = offer of the last unit dispatched\\
 13.1 Break-even & n* = t\_dev / (t\_m − t\_a)\\
 13.2 Error accumulation & P = 1 − (1 − p)\^{}n\\
 13.4 Change downtime & T\_down = n × CFR × MTTR\\
@@ -93,8 +98,9 @@ Law & Formula\\\midrule
 21.1 Half-splitting & k = ceiling(log2 N)\\
 21.2 Mutation score & detected / introduced\\
 22.1 Expiry in isolation & everything with life L\_i < T\_iso expires\\
-22.2 Reconnect surge & T\_drain = N × E / μ\\
-22.3 Isolation drift & e = y × T\_iso\\
+22.2 Recovery & data lost ≤ T\_b; T\_restore = S / θ + Σ t\_i\\
+22.3 Reconnect surge & T\_drain = N × E / μ\\
+22.4 Isolation drift & e = y × T\_iso\\
 \end{tbl}
 
 \sect{Numbers worth memorising}
@@ -172,6 +178,8 @@ Answer aloud, then check. If you can answer all forty, you know more than most p
 \item What does sticky duty avoid? Changing the duty unit while it is running and healthy.
 \item What expires during a long isolation? Anything whose remaining life is shorter: CRLs, certificates, licences.
 \item Why stagger reconnection after an outage? Buffered events from every site arrive at once and swamp the server and links.
+\item What is fade margin? Received power minus the receiver's sensitivity: what the link holds in reserve.
+\item What does the 3-2-1-1-0 rule require? 3 copies, 2 media, 1 off site, 1 offline or immutable, 0 errors on test.
 \item What is the first step in fault-finding? Define the symptom exactly; then find what changed.
 \end{enumerate}
 
@@ -200,8 +208,10 @@ DMZ & Demilitarised zone between control and business networks\\
 DNP3 & Distributed Network Protocol, IEEE 1815\\
 DPAPI & Windows Data Protection API\\
 DTLS & TLS for UDP\\
+Fade margin & Received power minus receiver sensitivity\\
 FAT, SAT & Factory and Site Acceptance Tests\\
 FR & Foundational requirement (IEC 62443)\\
+Fresnel zone & The ellipse around a radio path that must be kept clear\\
 GDS & Global Discovery Server (OPC UA certificates)\\
 GOOSE & Generic Object Oriented Substation Event (IEC 61850)\\
 HART & Digital signal on a 4–20 mA loop\\
@@ -211,6 +221,7 @@ IED & Intelligent electronic device\\
 ITP & Inspection and Test Plan\\
 JSON & JavaScript Object Notation\\
 MAC & Message authentication code\\
+Merit order & Dispatching generators from cheapest offer upwards\\
 MFA & Multi-factor authentication\\
 Mimic & A SCADA graphic (Geo SCADA's word)\\
 MMS & Manufacturing Message Specification\\
@@ -226,6 +237,8 @@ PSK & Pre-shared key\\
 QAM & Quadrature amplitude modulation\\
 QoS & MQTT quality of service level\\
 RBE & Report by exception\\
+RPO & Recovery point objective: how much data may be lost\\
+RTO & Recovery time objective: how long recovery may take\\
 RTU & Remote terminal unit\\
 SBOM & Software bill of materials\\
 SCL & Substation Configuration Language\\

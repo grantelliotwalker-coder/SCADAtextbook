@@ -2,7 +2,7 @@
 
 **The Principles of the SCADA Technician** — a vendor-neutral textbook for becoming an excellent SCADA technician, by Grant Walker.
 
-**Read it:** [`Principia_SCADA.pdf`](Principia_SCADA.pdf) (98 pages)
+**Read it:** [`Principia_SCADA.pdf`](Principia_SCADA.pdf) (103 pages)
 
 ## Contents
 

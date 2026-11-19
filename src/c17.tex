@@ -102,6 +102,10 @@ A broker that quietly carries on without its audit log or its revocation list is
 
 Machine-bound encryption cannot be restored to a new PC, which is exactly what a backup must do. So backups are re-encrypted under a password, with a deliberately slow, memory-hungry key derivation such as scrypt. At its common setting each guess needs 128 MiB of memory, which cripples the graphics cards that break simple hashes. Store the backup password separately from the backup, and test a restore.
 
+Across a whole utility, passwords, keys and certificates are better kept in one \emph{secrets manager} than in spreadsheets and scripts: a vault that issues secrets to people and programs on request, records who fetched what, and can rotate them automatically.
+
+\inpractice{South East Water} South East Water presented its use of HashiCorp Vault for secrets management at the 2026 Geo SCADA conference.
+
 \sect{17.9 Remember and ask}
 \say{Remove what is not needed; disabled is not the same as absent.}
 \say{The hash buys days; only entropy buys centuries.}

@@ -40,6 +40,8 @@ Timestamps are usually stored as a count of milliseconds since 1 January 1970 UT
 \end{itemize}
 \defn{3.5}{Sequence of events, SOE} A record of exactly which events happened in which order, at millisecond resolution, used to find the first cause of a trip.
 
+\defn{3.6}{Controller event log} A block in the PLC or RTU program that records each event (a state change, a trip, an operator command) with the controller's own timestamp in a buffer, for SCADA to read later. It gives true sequence-of-events data even over a protocol such as Modbus that carries no timestamps of its own, and survives a communications outage as long as the buffer does not overflow.
+
 \law{3.2}{Ordering condition} Two events Δ apart, stamped by devices whose clocks are wrong by at most e₁ and e₂, can be put in the right order only if:
 \[ \Delta > e_1 + e_2 \]
 Two breakers open 5 ms apart at different sites. To be sure which opened first, the two clocks together may be wrong by less than 5 ms. If clocks differ by 200 ms, the question after a trip, \emph{what happened first?}, cannot be answered.

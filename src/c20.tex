@@ -17,6 +17,8 @@ The highest score is the lowest priority. Dragos reported that only 2\% of ICS-r
 
 \law{20.2}{Exposure window} A known vulnerability is open from disclosure until patched, W = t\_patched − t\_disclosed. If exploitation attempts succeed at a constant rate h per day, the chance of compromise is P = 1 − e⁻ʰᵂ. With h = 0.002 per day: 5.8\% if patched within 30 days, 30\% at six months, 52\% at a year. The rate is illustrative; the shape is not. The only variable the site controls is W.
 
+\prop{20.1}{The window is closing} The time from a vulnerability's publication to its first exploit has collapsed. The Zero Day Clock (zerodayclock.com), which tracks it across thousands of vulnerabilities, shows a median of 771 days in 2018, about a month by 2025, and under a day in 2026, with AI-assisted exploit writing the main driver. When exploitation is faster than any patch cycle, the controls that do not depend on patching carry the load: segmentation, no exposed services, allow-listing, monitoring and the ability to isolate (Chapter 22).
+
 \sect{20.2 Patching without an outage}
 Patching used to be avoided for fear that a Windows update would break the SCADA software. Vendors now test operating-system patches against their products and publish the results (Schneider Electric does this for Geo SCADA), which turns patching into a procedure.
 \rul{20.1}{Verify what you install} Check every installer or update against the hash (usually SHA-256) the vendor publishes, before installing it. Two builds are the same product only if every file has the same hash, which is also why a software bill of materials lists each file's version and hash.

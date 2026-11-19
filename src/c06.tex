@@ -10,6 +10,10 @@ OPC DA works only on Windows, and reaching a server on another computer uses DCO
 
 \defn{6.2}{DA-to-UA bridge (wrapper)} A program that connects to an OPC DA server locally, avoiding remote DCOM, and republishes the same items as an OPC UA server. Each DA item path typically becomes an OPC UA string NodeId. This is the usual way to bring an older system's data into a modern SCADA.
 
+Because OPC DA is tied to Windows and DCOM, sites are moving off it. Three routes, in order of effort: wrap DA in a DA-to-UA bridge on the same machine (quick, but keeps the old server alive); put a connectivity server or gateway in front of the devices and publish OPC UA or MQTT; or replace the DA path with the SCADA platform's native drivers. MQTT, with Sparkplug B (Chapter 5), is increasingly the target, because many consumers can then share one feed.
+
+\inpractice{Schneider Electric} At the 2026 Geo SCADA conference Schneider Electric presented migration from OPC DA to MQTT as the direction for Geo SCADA integrations, alongside its EcoStruxure Automation Expert (Chapter 14).
+
 \sect{6.2 OPC UA}
 \defn{6.3}{OPC UA} OPC Unified Architecture, IEC 62541: a platform-independent standard for industrial data exchange, with built-in security. Its binary transport is opc.tcp, default port 4840.
 

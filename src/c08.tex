@@ -59,6 +59,19 @@ HSR (IEC 62439-3) & Zero & The same idea in a ring, frames sent both ways round;
 
 \rul{8.1}{Choose redundancy from the tolerable gap} Ask what is the longest communication gap the application tolerates. Protection needs zero; most SCADA does not. PRP gives zero switchover time because there is no switchover: both paths are always live.
 
+\sect{8.6 Routed telemetry networks}
+Many telemetry networks grew as one flat layer 2 network: every RTU, radio and server in one broadcast domain. Flat networks are simple, but one broadcast storm, loop or compromised device reaches everything.
+
+\defn{8.6}{Layer 2 and layer 3} A layer 2 switch forwards frames by MAC address within one network. A layer 3 device (a router, or a layer 3 switch) forwards packets between separate IP subnets, and can filter what crosses between them.
+
+\defn{8.7}{OSPF and BGP} Routing protocols that let routers learn paths automatically and reroute around a failure. OSPF (Open Shortest Path First) is used inside one network and converges quickly; BGP (Border Gateway Protocol) exchanges routes between networks or administrative domains.
+
+\defn{8.8}{NAT} Network Address Translation: rewriting addresses as traffic passes a router, so many devices hide behind one address. Convenient, but it hides which device is really talking.
+
+\rul{8.2}{Route, segment and address uniquely} Split a telemetry network into subnets joined by routers and firewall rules, so each area is its own broadcast domain and its own zone (Chapter 18). Use a routing protocol such as OSPF between sites for automatic failover, keep RSTP inside each layer 2 segment, and give every radio and RTU its own unique IP address with no NAT, so every device can be identified, monitored and reached directly. Base-station radios can then act as transparent bridges onto their site's subnet.
+
+\inpractice{Unity Water} Unity Water replaced a flat radio network with separate subnets joined by routers and firewall routes, running OSPF over RSTP with BGP routing, layer 2 and layer 3 switching, no NAT, and base radios acting as passive network bridges (presented at the 2026 Geo SCADA conference).
+
 \sect{Exercises}
 \begin{enumerate}
 \item t₁ = 0, t₂ = 5.0 ms, t₃ = 5.2 ms, t₄ = 1.2 ms. Find δ and θ. (1.0 ms; 4.5 ms)
@@ -66,4 +79,5 @@ HSR (IEC 62439-3) & Zero & The same idea in a ring, frames sent both ways round;
 \item An oscillator is wrong by 5 × 10⁻⁸. How long until it is 10 µs out? (200 s)
 \item A 100 frame/s stream crosses a ring that recovers in 200 ms. How many frames are lost? (20)
 \item Describe PRP and HSR in a sentence each. (Section 8.5)
+\item Why avoid NAT in a telemetry network? (It hides which device is talking, and complicates monitoring and direct access)
 \end{enumerate}

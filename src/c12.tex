@@ -71,10 +71,28 @@ For the process above with λ = 15 s: K\_c = 30 / (2 × 20) = 0.75 and T\_i = 30
 \item A safe fallback: if the APC or its communications stop, loops revert to local setpoints.
 \end{itemize}
 
+\sect{12.8 Duty, assist and standby}
+\defn{12.6}{Duty, assist and standby} At a station with several pumps or blowers, the \emph{duty} unit runs first, an \emph{assist} unit joins when demand exceeds what the duty unit can supply, and a \emph{standby} unit takes over if a running unit fails.
+
+\defn{12.7}{Duty rotation} The rule for changing which unit is duty. Common strategies:
+\begin{tbl}{P{0.27\textwidth}L}
+Strategy & How it works\\\midrule
+Fixed & The same unit is always duty. Simple; wears one unit out\\
+Rotate on start & Each new start goes to the next unit in turn. Equal starts; frequent changeovers\\
+Runtime equalisation & The unit with the fewest run hours becomes duty. Equal wear\\
+Sticky duty & The duty unit keeps the duty while it is running and healthy; rotation happens only when it stops, faults or reaches a run-time limit. Avoids needless changeovers mid-run\\
+\end{tbl}
+\law{12.8}{Runtime share} With n identical units sharing total running time T\_run equally, each unit runs T\_run / n; with a fixed duty, the duty unit runs nearly all of it. The difference is the life of the duty unit.
+
+\wex{12.4} Two pumps at a station that pumps 10 hours a day. Fixed duty: pump 1 runs 3,650 hours a year and pump 2 almost none, and pump 2's faults are found only when it is finally needed. Equalised: each runs 1,825 hours, and both are proven every week.
+
+\onsite Test rotation and changeover in the ITP (Chapter 21): the duty moves when it should; an assist starts only after its start delay; a faulted unit is replaced by the standby; and an ‘available’ signal lost while a unit runs does what the design says, which is a question for the process engineer, not for the tester.
+
 \sect{Exercises}
 \begin{enumerate}
 \item Step test: output 20\% to 30\%; PV 50 to 65; dead time 8 s; 63.2\% reached 48 s after the step. Find K, θ, τ. (1.5; 8 s; 40 s)
 \item Lambda-tune that process with λ = 20 s. (K\_c = 0.95; T\_i = 40 s)
 \item A 110 kW pump runs at 90\% speed. Find the power. (80.2 kW)
+\item Three pumps share 9,000 running hours a year with runtime equalisation. How long does each run? (3,000 hours)
 \item A loop cycles in auto. In manual the PV still cycles. Is the cause the tuning? (No: look at the process, valve or another loop)
 \end{enumerate}

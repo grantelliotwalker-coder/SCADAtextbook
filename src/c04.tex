@@ -21,6 +21,8 @@ Common function codes: 1 read coils, 2 read discrete inputs, 3 read holding regi
 
 \onsite The three classic Modbus faults. \emph{Off by one}: register 40001 in a manual is address 0 on the wire, and products disagree about which they mean. \emph{Word order}: a 32-bit float occupies two registers, and the device may send the high word or the low word first; a value that reads as nonsense or a tiny number usually needs its words swapped. \emph{Scaling}: many devices send integers scaled by 10 or 100.
 
+\inpractice{Brisbane Metro} Modbus TCP is not only a legacy protocol. Brisbane City Council's electric Metro, controlled by Hitachi PLCs, uses mainly Modbus TCP for its depot charging, where fast and slow chargers at the parking stations are switched much like feeders and high-voltage switchgear.
+
 Modbus has no authentication and no timestamps. Any device that can reach port 502 can write any register (Chapter 16).
 
 \sect{4.3 DNP3}
@@ -67,6 +69,27 @@ The scan and the screen refresh usually dominate. The network is often blamed an
 \sect{4.7 Who connects to whom}
 In a polled system the centre connects \emph{in} to each site, so every site needs an open inbound port, a fixed address or a VPN. In publish-and-subscribe systems (Chapter 5) every site connects \emph{out} to a broker. A site firewall can then block all inbound traffic and allow one outbound connection to one address: a large reduction in attack surface.
 
+\sect{4.8 Radio networks}
+Licensed radio still carries most water telemetry in Australia. A technician who knows how a radio channel's capacity is set can tell a radio problem from a protocol problem.
+
+\defn{4.4}{Channel bandwidth} The width of the licensed radio channel, typically 12.5 kHz or 25 kHz for telemetry. More bandwidth carries more symbols per second.
+
+\defn{4.5}{Modulation} How bits are carried on each symbol. QPSK carries 2 bits per symbol, 16-QAM 4, 64-QAM 6 and 256-QAM 8. Denser modulation is faster but needs a cleaner signal. Adaptive radios step down to a robust modulation when the signal weakens.
+
+\defn{4.6}{Signal-to-noise ratio, SNR} The strength of the received signal against the background noise, in decibels. It sets which modulation a link can sustain, and falling SNR is the earliest warning of a failing antenna, cable or path.
+
+\law{4.6}{Raw bit rate} With symbol rate R\_s, roughly the channel bandwidth B divided by (1 + α) for a filter roll-off α, and M points in the modulation:
+\[ R_b \approx R_s \log_2 M, \qquad R_s \approx \frac{B}{1 + \alpha} \]
+\law{4.7}{Shannon limit} No modulation can carry more than:
+\[ C = B \log_2 (1 + SNR) \]
+with SNR as a ratio, not in decibels.
+
+\wex{4.3} A 25 kHz channel with α = 0.25 carries about 20,000 symbols a second: 40 kbit/s with QPSK, 80 kbit/s with 16-QAM, 160 kbit/s with 256-QAM, before error-correction overhead. The Shannon limit at 10 dB SNR (a ratio of 10) is 25,000 × log₂ 11 ≈ 86 kbit/s, so 256-QAM is impossible there; at 30 dB (1,000) it is about 249 kbit/s. A 12.5 kHz channel halves every figure. Know your channel's bandwidth and modulation before blaming the protocol for a slow poll cycle (Law 4.2).
+
+\rul{4.1}{Monitor the radios, not only the RTUs} Read each radio's SNR, received signal strength and error counts (usually by SNMP), trend them, and alarm on a falling trend. Interference between transmit and receive on a shared antenna is cured with a properly tuned duplexer, not with retries.
+
+\inpractice{Unity Water} Presented at the 2026 conference: Unity Water's radio upgrade chose 4RF Aprisa SR+ radios, fixed interference with duplexers, put every base station's equipment in hot standby with UPS backup at repeaters, and reads SNR from the radios. A SCADAPack 474i edge controller running Node-RED collects the radios' SNMP data at the site, instead of the master polling every RTU for it, and radio configuration scripts are generated automatically from the Geo SCADA database. The network itself is routed rather than flat (Section 8.6).
+
 \sect{Exercises}
 \begin{enumerate}
 \item A manual lists holding register 40010. What address is likely sent on the wire? (9)
@@ -74,5 +97,8 @@ In a polled system the centre connects \emph{in} to each site, so every site nee
 \item How long does one byte take at 1,200 baud? (8.3 ms)
 \item A link loses 10\% of messages. Find the delivery probability within 4 attempts. (99.99\%)
 \item λ = 0.1 per second, B = 100 bytes. Find monthly data. (25.9 MB)
+\item How many bits per symbol does 64-QAM carry? (6)
+\item A 12.5 kHz channel with α = 0.25 uses 16-QAM. Find the raw bit rate. (40 kbit/s)
+\item Find the Shannon limit of a 25 kHz channel at 20 dB SNR. (About 166 kbit/s)
 \item Why does DNP3 deliver correct data after an hour's outage? (Proposition 4.1)
 \end{enumerate}

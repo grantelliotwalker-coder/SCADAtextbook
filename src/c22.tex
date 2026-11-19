@@ -1,0 +1,68 @@
+\chap{Chapter 22. Resilience: Isolate, Rebuild and Restart}
+Chapter 20 is about keeping attackers out. This chapter assumes they got in, or that the IT network, the carrier or a supplier has failed, and asks the harder question: can the plant keep running on its own, and can the control system be rebuilt from nothing? Australian guidance now expects critical infrastructure operators to be able to do both.
+
+\sect{22.1 Definitions}
+\defn{22.1}{Vital system} An OT or enabling system without which a critical service stops: the SCADA servers, the controllers, the network between them, and the less obvious things they depend on, such as time sources, domain controllers, licence servers and certificate authorities.
+
+\defn{22.2}{Isolation point} A place where the OT network can be cut off from everything else (IT, the internet, vendors, carriers) on purpose, quickly, and without stopping the plant.
+
+\defn{22.3}{Hidden dependency} Something the control system needs that nobody listed: a licence check to a vendor's server, a time source on the IT network, a DNS server, an authentication server (Law 18.4), a historian that a control script reads from.
+
+\inpractice{ASD CI Fortify} ASD's Australian Cyber Security Centre released CI Fortify in October 2025: guidance for critical infrastructure operators to identify vital OT and enabling systems and their isolation points, to isolate them during a crisis, and to rebuild them. At the 2026 Geo SCADA conference a speaker set the bar as being able to disconnect for three months and rebuild from scratch.
+
+\sect{22.2 Able to isolate}
+\rul{22.1}{Find the hidden dependencies before the crisis} Isolate deliberately in a planned test: cut the OT network off from IT and the outside world, and record everything that complains. Each complaint is a hidden dependency to remove or bring inside the boundary.
+
+\begin{tbl}{P{0.3\textwidth}L}
+Dependency & Bring it inside\\\midrule
+Licence server off site & Licences held locally, or node-locked licences; avoid off-site licence servers\\
+Time from the IT network & A GNSS clock on the OT network (Section 8.3)\\
+Authentication from corporate directory & A separate OT directory, or cached and break-glass local accounts\\
+Certificates and CRLs from an IT CA & A site CA inside the OT boundary (Section 15.6), with CRLs that outlast the isolation\\
+Vendor remote support & A documented local procedure for each task the vendor normally does\\
+Patches and installers from the internet & A local file share of verified installers (Rule 20.1)\\
+\end{tbl}
+\law{22.1}{What expires during isolation} Anything with a lifetime shorter than the isolation will expire inside it. For an isolation of T\_iso, list every item with remaining life L\_i < T\_iso: certificates, CRLs (Law 15.6), licences, passwords with forced expiry, trial periods.
+
+\wex{22.1} A three-month isolation is about 90 days. A CRL valid for 30 days and refreshed from an IT-side CA will expire after at most 30 days and stop every certificate client. Device certificates expiring in the next quarter, and any licence that must check in monthly, will fail too. Each must be renewed before isolating, or moved inside the boundary.
+
+\sect{22.3 Able to rebuild}
+Rebuilding means installing the control system on new or wiped hardware with nothing from outside. Everything needed must already be inside.
+\begin{itemize}
+\item \textbf{Backups that ransomware cannot reach.} Offline or immutable copies of server images, databases, configuration exports (Section 13.5), PLC and RTU projects, and network device configurations. Enterprise backup products (Commvault and Veeam were named at the conference) work, provided the copies are isolated from the network they protect. Test a full restore.
+\item \textbf{The software itself.} Installers for the operating system, SCADA, drivers, tools and firmware, at the versions in use, on a local file share, with their hashes (Rule 20.1), and the licence files.
+\item \textbf{Paper.} Printed network diagrams, IP address plans, I/O lists, wiring diagrams, call trees and the recovery procedure itself. Recovery may begin with no working computers; keep printouts current and secure, since they are also what an attacker wants (Section 20.4).
+\item \textbf{Access control lists and firewall rules} recorded, so the rebuilt network is no more open than the old one.
+\end{itemize}
+
+\sect{22.4 Able to restart}
+Reconnecting after an outage is a fault of its own. Every outstation that buffered events (Proposition 4.1) and every edge node that stored data (Definition 5.11) sends it at once.
+
+\law{22.2}{Reconnect surge} If N sites each return with E buffered events, and the path or server can process μ events per second, the backlog takes:
+\[ T_{drain} = \frac{N \cdot E}{\mu} \]
+and while the arrival rate exceeds μ, delay grows without limit (Law 9.4).
+
+\wex{22.2} 300 RTUs each return with 2,000 buffered events, and the server's driver handles 5,000 events a second: 600,000 events take 120 s, during which live values are minutes old. On one 40 kbit/s radio channel serving 40 sites, at about 15 bytes an event, the channel's share is 40 × 2,000 × 15 × 8 / 40,000 = 240 s. Stagger reconnection by area, and restore the most important sites first.
+
+\law{22.3}{Clock drift in isolation} A device clock with error y drifts y × T\_iso over an isolation (Law 3.3). At 5 parts per million, 90 days is 39 seconds: enough to scramble sequence-of-events records and to make certificates look not yet valid. Resynchronise every clock before trusting its timestamps, and before re-enabling certificate checks.
+
+\sect{22.5 Planning and people}
+\begin{itemize}
+\item \textbf{Engage every stakeholder in their own terms.} One speaker's rule: two slides for each group (executives, operators, IT, maintenance, regulators), saying what the plan means for them.
+\item \textbf{Write the plan as a runbook,} with roles, decision points and the reporting clock of Law 20.3, and print it.
+\item \textbf{Exercise it.} An isolation never tested is a hope, not a capability. Run a planned isolation, and a restore onto spare hardware, at least once a year.
+\end{itemize}
+
+\sect{22.6 Remember and ask}
+\say{Be able to disconnect for months and rebuild from scratch, using only what is already inside the fence.}
+\ask{If we cut the OT network off today, what would stop working first?}
+\ask{When did we last restore the SCADA server from backup onto clean hardware?}
+
+\sect{Exercises}
+\begin{enumerate}
+\item Name four hidden dependencies that can stop an isolated control system. (Any four from Section 22.2)
+\item An isolation will last 60 days. Which of these expire inside it: a CRL with 25 days left, a certificate with 200 days left, a licence that checks in every 30 days? (The CRL and the licence)
+\item 120 sites each return with 500 events; the server handles 2,000 a second. Find the drain time. (30 s)
+\item A clock is 2 parts per million out. How far does it drift in 90 days? (15.6 s)
+\item Why keep printed network diagrams, and why secure them? (Recovery may start with no computers; they are also valuable to an attacker)
+\end{enumerate}

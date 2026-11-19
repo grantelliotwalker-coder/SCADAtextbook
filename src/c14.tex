@@ -10,6 +10,8 @@ For decades the control program, its runtime and the hardware came as one box fr
 
 \defn{14.3}{MTP and O-PAS} A Module Type Package is a vendor-neutral description of a process module, such as a dosing skid, so it can be integrated in hours instead of weeks. Open Process Automation (O-PAS) is a user-led standard to make DCS components interchangeable across vendors.
 
+\inpractice{EcoStruxure Automation Expert} Schneider Electric's EcoStruxure Automation Expert (EAE) is an IEC 61499 system: one application, drawn once, deployed across controllers, edge PCs and virtual runtimes. Schneider also positions it within open, service-oriented architectures such as O-PAS.
+
 \law{14.1}{Scan-based response time} With input delay T\_in, scan time T\_scan and output delay T\_out, an input that changes just after the inputs were read waits almost a whole scan, then a whole scan more:
 \[ T_{worst} = T_{in} + 2\,T_{scan} + T_{out}, \qquad T_{mean} \approx T_{in} + 1.5\,T_{scan} + T_{out} \]
 With 5 ms in, a 10 ms scan and 5 ms out: worst case 30 ms, average about 25 ms.
@@ -51,7 +53,16 @@ Models drift as the plant changes. Track the error against fresh laboratory resu
 \item Good first uses: searching manuals, drawings and shift logs; summarising an alarm flood; drafting alarm rationalisation entries for a person to review.
 \end{itemize}
 
-\sect{14.5 Remember and ask}
+\sect{14.5 AI for defenders, and where it runs}
+\defn{14.7}{On-premises and open-weight models} An \emph{on-premises} model runs on a server inside the organisation, so plant data never leaves the site. An \emph{open-weight} model is one whose trained parameters are published, so it can run on local hardware without a cloud service.
+
+\rul{14.1}{Keep plant data where it belongs} Decide where every AI tool's data goes before it is connected to plant data. For OT, an on-premises or open-weight model on a local server, with no outbound connection, is often the only acceptable design; office assistants that work in the cloud belong on the business network, away from control data.
+
+AI developers now run programs aimed at critical-infrastructure defence. OpenAI launched Daybreak in May 2026, giving vetted defenders access to cyber-trained models in tiers that include separate access for defensive (‘Blue’) and red-team (‘Red’) work. In October 2026 Anthropic launched its Critical Infrastructure Defense Program, providing frontier Claude models, on-site engineers and threat research to the security firms that protect operational technology. Attackers have the same tools (Section 20.1).
+
+The people matter as much as the tools. Utilities presenting at the 2026 conference stressed cross-skilling IT and OT staff: OT engineers who understand networks and security, and IT staff who understand that a plant cannot simply be rebooted.
+
+\sect{14.6 Remember and ask}
 \say{Is it advising the operator or writing to the controller? Those are two different risk assessments.}
 \ask{What is the worst-case jitter under load, not the average?}
 \ask{What permissions does the agent hold, and where is the audit trail of its actions?}
@@ -62,5 +73,6 @@ Models drift as the plant changes. Track the error against fresh laboratory resu
 \item T\_in = 2 ms, T\_scan = 20 ms, T\_out = 3 ms. Find the worst-case response. (45 ms)
 \item A 2 ms task (500 per second) overruns with p = 2 × 10⁻⁶. Find the misses per day. (86.4)
 \item s = 0.95, f = 0.002, π = 0.001. Find the precision. (32\%)
+\item What is the advantage of an on-premises or open-weight model for plant data? (The data never leaves the site)
 \item Why is prompt injection relevant to an alarm description field? (Anyone who can write that text can put instructions in front of an agent that reads it)
 \end{enumerate}

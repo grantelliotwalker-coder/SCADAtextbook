@@ -13,6 +13,7 @@ Colonial Pipeline, 2021 & Ransomware hit IT only; the company shut the pipeline 
 PIPEDREAM, 2022 & A modular toolkit for Schneider and Omron PLCs, CODESYS and OPC UA, found before use & Tools target whole vendor families\\
 Unitronics PLCs, 2023 & Internet-exposed PLCs at water utilities defaced using a default password & Low skill, real impact\\
 FrostyGoop, 2024 & Modbus TCP commands to heating controllers in Lviv. Dragos reported over 600 apartment buildings without heat for almost 48 hours; Ukrainian accounts cited by critics describe a smaller, shorter outage & Modbus has no authentication; no exploit was needed\\
+Poland, 29 December 2025 & Coordinated attacks on more than 30 wind and solar farms, a combined heat and power plant and a manufacturer. Attackers disrupted communications with the grid operator, loaded corrupted firmware to controllers and ran wiper malware; generation continued. Entry included exposed remote access; at the 2026 conference a speaker described entry through a private cellular APN & Distributed generation is a target; private carrier networks are not a security boundary\\
 Volt Typhoon (VOLTZITE) & Living off the land with built-in tools, stealing GIS data, network diagrams and configuration & The engineering data is the target\\
 \end{tbl}
 
@@ -38,6 +39,10 @@ The Dragos 2026 Year in Review (covering 2025) reported adversaries moving from 
 \item Report anything odd: an unexplained setpoint change, a login at 3 a.m., a PLC in program mode. Most incidents are found by someone who noticed.
 \end{itemize}
 
+\rul{19.1}{A carrier network is not a trust boundary} State-sponsored actors have compromised the backbone routers of major telecommunications providers. A private APN or a carrier's MPLS service separates your traffic from the internet, not from an attacker inside the carrier. Encrypt and authenticate telemetry over it (Chapters 15 and 16), and firewall it where it enters the control network like any other untrusted link.
+
+ASD publishes an Annual Cyber Threat Report on the Australian picture, and its CI Fortify guidance (Chapter 22) on isolating and rebuilding critical services.
+
 \sect{19.4 Remember and ask}
 \say{FrostyGoop did not exploit anything. It sent valid Modbus.}
 \ask{Could our monitoring tell the difference between an engineer and an attacker writing the same setpoint?}
@@ -47,6 +52,7 @@ The Dragos 2026 Year in Review (covering 2025) reported adversaries moving from 
 \begin{enumerate}
 \item Which attack targeted a safety system, and how was it found? (TRITON; a bug tripped the plant)
 \item What separates Stage 1 from Stage 2? (Gaining access and learning, against building a plant-specific attack)
+\item Why is a private APN not a security boundary? (An attacker inside the carrier, or with carrier credentials, can still reach it)
 \item Name two incidents where no vulnerability was exploited. (Any two of Maroochy, Unitronics, FrostyGoop, Colonial)
 \item d = 0.01 per day, dwell time 60 days. Find the detection probability. (45.3\%)
 \item Barriers 0.4, 0.25 and 0.8. Find the chance of reaching the process. (0.08)
